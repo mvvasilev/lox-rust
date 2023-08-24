@@ -3,6 +3,7 @@ use std::{env, fs::read_to_string, io::Write};
 use token::TokenKind;
 
 mod err;
+mod expr;
 mod scan;
 mod token;
 

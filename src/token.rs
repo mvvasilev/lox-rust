@@ -35,9 +35,9 @@ pub enum TokenKind {
     LessEqual,
 
     // Literals.
-    IDENTIFIER(String),
-    STRING(String),
-    NUMBER(f64),
+    Identifier(String),
+    String(String),
+    Number(f64),
 
     // Keywords.
     AND,

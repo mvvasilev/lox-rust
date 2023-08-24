@@ -94,7 +94,7 @@ where
         }
 
         Ok(Token::new(
-            TokenKind::STRING(String::from_iter(buf)),
+            TokenKind::String(String::from_iter(buf)),
             self.line,
         ))
     }
@@ -114,7 +114,7 @@ where
         }
 
         Ok(Token::new(
-            TokenKind::NUMBER(String::from_iter(buf).parse().unwrap()),
+            TokenKind::Number(String::from_iter(buf).parse().unwrap()),
             self.line,
         ))
     }
@@ -137,7 +137,7 @@ where
 
         match self.match_keyword(&ident) {
             Some(token) => return Ok(token),
-            None => return Ok(self.create_token(TokenKind::IDENTIFIER(ident))),
+            None => return Ok(self.create_token(TokenKind::Identifier(ident))),
         }
     }
 
