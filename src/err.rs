@@ -1,14 +1,17 @@
 use std::{error::Error, fmt};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LoxError {
     line: usize,
     message: String,
 }
 
 impl LoxError {
-    pub fn with_message(message: String) -> Self {
-        Self { message, line: 0 }
+    pub fn with_message(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+            line: 0,
+        }
     }
 
     pub fn with_line(message: String, line: usize) -> Self {

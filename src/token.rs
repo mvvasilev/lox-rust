@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use std::fmt::Display;
+
+#[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
     pub line: usize,
@@ -10,7 +12,13 @@ impl Token {
     }
 }
 
-#[derive(Debug, PartialEq)]
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} - line {}", self.kind, self.line)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind {
     LeftParen,
     RightParen,
@@ -38,12 +46,12 @@ pub enum TokenKind {
     Identifier(String),
     String(String),
     Number(f64),
+    Boolean(bool),
 
     // Keywords.
     AND,
     CLASS,
     ELSE,
-    FALSE,
     FUN,
     FOR,
     IF,
@@ -53,7 +61,6 @@ pub enum TokenKind {
     RETURN,
     SUPER,
     THIS,
-    TRUE,
     VAR,
     WHILE,
 

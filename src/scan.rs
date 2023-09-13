@@ -1,25 +1,23 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, str::Chars};
 
 use crate::{
     err::LoxError,
     token::{Token, TokenKind},
 };
-
-pub struct Scanner<R> {
-    reader: R,
+pub struct Scanner {
+    reader: Chars,
     next_chars: VecDeque<char>,
     line: usize,
+    next_token: Option<Token>,
 }
 
-impl<R> Scanner<R>
-where
-    R: Iterator<Item = char>,
-{
-    pub fn new(reader: R) -> Self {
+impl Scanner {
+    pub fn new(string: String) -> Self {
         Self {
-            reader,
+            reader: string.chars(),
             next_chars: VecDeque::new(),
             line: 1,
+            next_token: None,
         }
     }
 
@@ -60,11 +58,11 @@ where
     }
 
     fn is_alphabetical(&mut self, alpha_char: char) -> bool {
-        return alpha_char.is_alphabetic() || alpha_char == '_';
+        alpha_char.is_alphabetic() || alpha_char == '_'
     }
 
     fn is_alphanumeric(&mut self, c: char) -> bool {
-        return self.is_alphabetical(c) || self.is_digit(c);
+        self.is_alphabetical(c) || self.is_digit(c)
     }
 
     fn create_token(&self, kind: TokenKind) -> Token {
@@ -146,7 +144,7 @@ where
             "and" => Some(self.create_token(TokenKind::AND)),
             "class" => Some(self.create_token(TokenKind::CLASS)),
             "else" => Some(self.create_token(TokenKind::ELSE)),
-            "false" => Some(self.create_token(TokenKind::FALSE)),
+            "false" => Some(self.create_token(TokenKind::Boolean(false))),
             "for" => Some(self.create_token(TokenKind::FOR)),
             "fun" => Some(self.create_token(TokenKind::FUN)),
             "if" => Some(self.create_token(TokenKind::IF)),
@@ -155,22 +153,15 @@ where
             "print" => Some(self.create_token(TokenKind::PRINT)),
             "super" => Some(self.create_token(TokenKind::SUPER)),
             "this" => Some(self.create_token(TokenKind::THIS)),
-            "true" => Some(self.create_token(TokenKind::TRUE)),
+            "true" => Some(self.create_token(TokenKind::Boolean(true))),
             "var" => Some(self.create_token(TokenKind::VAR)),
             "while" => Some(self.create_token(TokenKind::WHILE)),
             "return" => Some(self.create_token(TokenKind::RETURN)),
             _ => None,
         }
     }
-}
 
-impl<R> Iterator for Scanner<R>
-where
-    R: Iterator<Item = char>,
-{
-    type Item = Result<Token, LoxError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn match_next_token(&mut self) -> Option<Result<Token, LoxError>> {
         loop {
             let c = self.pop_char();
 
@@ -231,6 +222,35 @@ where
             };
 
             return Some(Ok(token));
+        }
+    }
+
+    pub fn peek(&mut self) -> Option<Result<Token, LoxError>> {
+        self.next_token.clone().map(|t| Ok(t)).or_else(|| {
+            Some(self.next()?.map(|t| {
+                self.next_token = Some(t.clone());
+
+                t
+            }))
+        })
+    }
+
+    pub fn pop(&mut self) -> Option<Result<Token, LoxError>> {
+        self.next()
+    }
+}
+
+impl Iterator for Scanner {
+    type Item = Result<Token, LoxError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.next_token.clone() {
+            Some(t) => {
+                self.next_token = None;
+
+                return Some(Ok(t));
+            }
+            None => self.match_next_token(),
         }
     }
 }
