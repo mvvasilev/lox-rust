@@ -1,18 +1,18 @@
 use crate::token::Token;
 
 pub trait Visitor {
-    fn visit_assign(&mut self, assign: &mut Assign);
-    fn visit_binary(&mut self, binary: &mut Binary);
-    fn visit_unary(&mut self, unary: &mut Unary);
-    fn visit_call(&mut self, call: &mut Call);
-    fn visit_get(&mut self, get: &mut Get);
-    fn visit_grouping(&mut self, grouping: &mut Grouping);
-    fn visit_literal(&mut self, literal: &mut Literal);
-    fn visit_logical(&mut self, logical: &mut Logical);
-    fn visit_set(&mut self, set: &mut Set);
-    fn visit_super(&mut self, super_expr: &mut Super);
-    fn visit_this(&mut self, this: &mut This);
-    fn visit_variable(&mut self, variable: &mut Variable);
+    fn visit_assign(&self, assign: &Assign);
+    fn visit_binary(&self, binary: &Binary);
+    fn visit_unary(&self, unary: &Unary);
+    fn visit_call(&self, call: &Call);
+    fn visit_get(&self, get: &Get);
+    fn visit_grouping(&self, grouping: &Grouping);
+    fn visit_literal(&self, literal: &Literal);
+    fn visit_logical(&self, logical: &Logical);
+    fn visit_set(&self, set: &Set);
+    fn visit_super(&self, super_expr: &Super);
+    fn visit_this(&self, this: &This);
+    fn visit_variable(&self, variable: &Variable);
 }
 
 pub struct PrettyPrinter {}
@@ -22,19 +22,20 @@ impl PrettyPrinter {
         PrettyPrinter {}
     }
 
-    pub fn print(&mut self, expr: &mut dyn Expression) {
-        return expr.accept(self);
+    pub fn print(&self, expr: &Box<dyn Expression>) {
+        expr.accept(self);
+        print!("\n");
     }
 }
 
 impl Visitor for PrettyPrinter {
-    fn visit_assign(&mut self, assign: &mut Assign) {
+    fn visit_assign(&self, assign: &Assign) {
         print!("(assign {} ", assign.name);
         assign.expr.accept(self);
         print!(")")
     }
 
-    fn visit_binary(&mut self, binary: &mut Binary) {
+    fn visit_binary(&self, binary: &Binary) {
         print!("(binary ");
         binary.left.accept(self);
         print!(" {} ", binary.operator);
@@ -42,38 +43,38 @@ impl Visitor for PrettyPrinter {
         print!(")");
     }
 
-    fn visit_unary(&mut self, unary: &mut Unary) {
+    fn visit_unary(&self, unary: &Unary) {
         print!("(unary {} ", unary.operator);
         unary.right.accept(self);
         print!(")");
     }
 
-    fn visit_call(&mut self, call: &mut Call) {
+    fn visit_call(&self, call: &Call) {
         print!("(call ");
         call.callee.accept(self);
         print!(" {} ", call.paren);
-        call.arguments.iter_mut().map(|expr| expr.accept(self));
+        call.arguments.iter().for_each(|expr| expr.accept(self));
         print!(")")
     }
 
-    fn visit_get(&mut self, get: &mut Get) {
+    fn visit_get(&self, get: &Get) {
         print!("(get ");
         get.expr.accept(self);
         print!(" {} ", get.name);
         print!(")");
     }
 
-    fn visit_grouping(&mut self, grouping: &mut Grouping) {
+    fn visit_grouping(&self, grouping: &Grouping) {
         print!("(grouping ");
         grouping.expression.accept(self);
         print!(")");
     }
 
-    fn visit_literal(&mut self, literal: &mut Literal) {
+    fn visit_literal(&self, literal: &Literal) {
         print!("(literal {})", literal.literal);
     }
 
-    fn visit_logical(&mut self, logical: &mut Logical) {
+    fn visit_logical(&self, logical: &Logical) {
         print!("(logical ");
         logical.left.accept(self);
         print!(" {} ", logical.operator);
@@ -81,7 +82,7 @@ impl Visitor for PrettyPrinter {
         print!(")");
     }
 
-    fn visit_set(&mut self, set: &mut Set) {
+    fn visit_set(&self, set: &Set) {
         print!("(set ");
         set.object.accept(self);
         print!(" {} ", set.name);
@@ -89,21 +90,21 @@ impl Visitor for PrettyPrinter {
         print!(")");
     }
 
-    fn visit_super(&mut self, super_expr: &mut Super) {
+    fn visit_super(&self, super_expr: &Super) {
         print!("(super {} {})", super_expr.keyword, super_expr.method);
     }
 
-    fn visit_this(&mut self, this: &mut This) {
+    fn visit_this(&self, this: &This) {
         print!("(this {})", this.keyword);
     }
 
-    fn visit_variable(&mut self, variable: &mut Variable) {
+    fn visit_variable(&self, variable: &Variable) {
         print!("(variable {})", variable.name);
     }
 }
 
 pub trait Expression {
-    fn accept(&mut self, visitor: &mut dyn Visitor);
+    fn accept(&self, visitor: &dyn Visitor);
 }
 
 pub struct Assign {
@@ -118,7 +119,7 @@ impl Assign {
 }
 
 impl Expression for Assign {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_assign(self)
     }
 }
@@ -140,7 +141,7 @@ impl Binary {
 }
 
 impl Expression for Binary {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_binary(self)
     }
 }
@@ -166,7 +167,7 @@ impl Call {
 }
 
 impl Expression for Call {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_call(self)
     }
 }
@@ -182,7 +183,7 @@ impl Grouping {
 }
 
 impl Expression for Grouping {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_grouping(self)
     }
 }
@@ -198,7 +199,7 @@ impl Literal {
 }
 
 impl Expression for Literal {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_literal(self)
     }
 }
@@ -210,7 +211,7 @@ pub struct Logical {
 }
 
 impl Expression for Logical {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_logical(self)
     }
 }
@@ -221,7 +222,7 @@ pub struct Get {
 }
 
 impl Expression for Get {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_get(self)
     }
 }
@@ -233,7 +234,7 @@ pub struct Set {
 }
 
 impl Expression for Set {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_set(self)
     }
 }
@@ -244,7 +245,7 @@ pub struct Super {
 }
 
 impl Expression for Super {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_super(self)
     }
 }
@@ -254,7 +255,7 @@ pub struct This {
 }
 
 impl Expression for This {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_this(self)
     }
 }
@@ -271,7 +272,7 @@ impl Unary {
 }
 
 impl Expression for Unary {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_unary(self)
     }
 }
@@ -281,7 +282,7 @@ pub struct Variable {
 }
 
 impl Expression for Variable {
-    fn accept(&mut self, visitor: &mut dyn Visitor) {
+    fn accept(&self, visitor: &dyn Visitor) {
         visitor.visit_variable(self)
     }
 }

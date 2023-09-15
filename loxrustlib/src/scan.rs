@@ -4,15 +4,15 @@ use crate::{
     err::LoxError,
     token::{Token, TokenKind},
 };
-pub struct Scanner {
-    reader: Chars,
+pub struct Scanner<'a> {
+    reader: Chars<'a>,
     next_chars: VecDeque<char>,
     line: usize,
     next_token: Option<Token>,
 }
 
-impl Scanner {
-    pub fn new(string: String) -> Self {
+impl<'a> Scanner<'a> {
+    pub fn new(string: &'a String) -> Self {
         Self {
             reader: string.chars(),
             next_chars: VecDeque::new(),
@@ -33,15 +33,15 @@ impl Scanner {
             Some(c) => {
                 self.next_chars.push_front(c);
 
-                return Some(c);
+                Some(c)
             }
             None => match self.reader.next() {
                 Some(c) => {
                     self.next_chars.push_back(c);
 
-                    return Some(c);
+                    Some(c)
                 }
-                None => return None,
+                None => None,
             },
         }
     }
@@ -82,12 +82,7 @@ impl Scanner {
 
                     buf.push(c)
                 }
-                None => {
-                    return Err(LoxError::with_line(
-                        "Unterminated string".to_string(),
-                        self.line,
-                    ))
-                }
+                None => return Err(LoxError::with_line("Unterminated string", self.line)),
             }
         }
 
@@ -141,22 +136,22 @@ impl Scanner {
 
     fn match_keyword(&self, identifier: &str) -> Option<Token> {
         match identifier {
-            "and" => Some(self.create_token(TokenKind::AND)),
-            "class" => Some(self.create_token(TokenKind::CLASS)),
-            "else" => Some(self.create_token(TokenKind::ELSE)),
+            "and" => Some(self.create_token(TokenKind::And)),
+            "class" => Some(self.create_token(TokenKind::Class)),
+            "else" => Some(self.create_token(TokenKind::Else)),
             "false" => Some(self.create_token(TokenKind::Boolean(false))),
-            "for" => Some(self.create_token(TokenKind::FOR)),
-            "fun" => Some(self.create_token(TokenKind::FUN)),
-            "if" => Some(self.create_token(TokenKind::IF)),
-            "nil" => Some(self.create_token(TokenKind::NIL)),
-            "or" => Some(self.create_token(TokenKind::OR)),
-            "print" => Some(self.create_token(TokenKind::PRINT)),
-            "super" => Some(self.create_token(TokenKind::SUPER)),
-            "this" => Some(self.create_token(TokenKind::THIS)),
+            "for" => Some(self.create_token(TokenKind::For)),
+            "fun" => Some(self.create_token(TokenKind::Fun)),
+            "if" => Some(self.create_token(TokenKind::If)),
+            "nil" => Some(self.create_token(TokenKind::Nil)),
+            "or" => Some(self.create_token(TokenKind::Or)),
+            "print" => Some(self.create_token(TokenKind::Print)),
+            "super" => Some(self.create_token(TokenKind::Super)),
+            "this" => Some(self.create_token(TokenKind::This)),
             "true" => Some(self.create_token(TokenKind::Boolean(true))),
-            "var" => Some(self.create_token(TokenKind::VAR)),
-            "while" => Some(self.create_token(TokenKind::WHILE)),
-            "return" => Some(self.create_token(TokenKind::RETURN)),
+            "var" => Some(self.create_token(TokenKind::Var)),
+            "while" => Some(self.create_token(TokenKind::While)),
+            "return" => Some(self.create_token(TokenKind::Return)),
             _ => None,
         }
     }
@@ -170,35 +165,35 @@ impl Scanner {
                 Some(')') => self.create_token(TokenKind::RightParen),
                 Some('{') => self.create_token(TokenKind::LeftBrace),
                 Some('}') => self.create_token(TokenKind::RightBrace),
-                Some(',') => self.create_token(TokenKind::COMMA),
-                Some('.') => self.create_token(TokenKind::DOT),
-                Some('-') => self.create_token(TokenKind::MINUS),
-                Some('+') => self.create_token(TokenKind::PLUS),
-                Some(';') => self.create_token(TokenKind::SEMICOLON),
-                Some('*') => self.create_token(TokenKind::STAR),
+                Some(',') => self.create_token(TokenKind::Comma),
+                Some('.') => self.create_token(TokenKind::Dot),
+                Some('-') => self.create_token(TokenKind::Minus),
+                Some('+') => self.create_token(TokenKind::Plus),
+                Some(';') => self.create_token(TokenKind::Semicolon),
+                Some('*') => self.create_token(TokenKind::Star),
                 Some('!') => match self.next_char_matches('=') {
                     true => self.create_token(TokenKind::BangEqual),
-                    false => self.create_token(TokenKind::BANG),
+                    false => self.create_token(TokenKind::Bang),
                 },
                 Some('=') => match self.next_char_matches('=') {
                     true => self.create_token(TokenKind::EqualEqual),
-                    false => self.create_token(TokenKind::EQUAL),
+                    false => self.create_token(TokenKind::Equal),
                 },
                 Some('<') => match self.next_char_matches('=') {
                     true => self.create_token(TokenKind::LessEqual),
-                    false => self.create_token(TokenKind::LESS),
+                    false => self.create_token(TokenKind::Less),
                 },
                 Some('>') => match self.next_char_matches('=') {
                     true => self.create_token(TokenKind::GreaterEqual),
-                    false => self.create_token(TokenKind::GREATER),
+                    false => self.create_token(TokenKind::Greater),
                 },
                 Some('/') => match self.next_char_matches('/') {
                     // if there's a second slash, this is a comment - pop characters until the next newline
                     true => match self.reader.find(|&next_c| next_c == '\n') {
                         Some(_) => continue,
-                        None => self.create_token(TokenKind::EOF),
+                        None => self.create_token(TokenKind::Eof),
                     },
-                    false => self.create_token(TokenKind::SLASH),
+                    false => self.create_token(TokenKind::Slash),
                 },
                 Some(' ') | Some('\r') | Some('\t') => continue,
                 Some('\n') => {
@@ -213,12 +208,12 @@ impl Scanner {
                     return Some(self.create_identifier_token(alpha_char))
                 }
                 Some(other_char) => {
-                    return Some(Err(LoxError::with_line(
+                    return Some(Err(LoxError::with_message_line(
                         format!("Unknown character '{}'", other_char),
                         self.line,
                     )))
                 }
-                None => self.create_token(TokenKind::EOF),
+                None => self.create_token(TokenKind::Eof),
             };
 
             return Some(Ok(token));
@@ -240,11 +235,11 @@ impl Scanner {
     }
 }
 
-impl Iterator for Scanner {
+impl<'a> Iterator for Scanner<'a> {
     type Item = Result<Token, LoxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.next_token.clone() {
+        match self.next_token.take() {
             Some(t) => {
                 self.next_token = None;
 

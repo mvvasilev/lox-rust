@@ -14,7 +14,7 @@ impl Token {
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} - line {}", self.kind, self.line)
+        write!(f, "{:?}", self.kind)
     }
 }
 
@@ -24,22 +24,22 @@ pub enum TokenKind {
     RightParen,
     LeftBrace,
     RightBrace,
-    COMMA,
-    DOT,
-    MINUS,
-    PLUS,
-    SEMICOLON,
-    SLASH,
-    STAR,
+    Comma,
+    Dot,
+    Minus,
+    Plus,
+    Semicolon,
+    Slash,
+    Star,
 
     // One or two character tokens.
-    BANG,
+    Bang,
     BangEqual,
-    EQUAL,
+    Equal,
     EqualEqual,
-    GREATER,
+    Greater,
     GreaterEqual,
-    LESS,
+    Less,
     LessEqual,
 
     // Literals.
@@ -49,20 +49,20 @@ pub enum TokenKind {
     Boolean(bool),
 
     // Keywords.
-    AND,
-    CLASS,
-    ELSE,
-    FUN,
-    FOR,
-    IF,
-    NIL,
-    OR,
-    PRINT,
-    RETURN,
-    SUPER,
-    THIS,
-    VAR,
-    WHILE,
+    And,
+    Class,
+    Else,
+    Fun,
+    For,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    This,
+    Var,
+    While,
 
-    EOF,
+    Eof,
 }
