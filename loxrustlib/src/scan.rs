@@ -1,12 +1,11 @@
-use std::{collections::VecDeque, str::Chars};
+use std::{iter::Peekable, str::Chars};
 
 use crate::{
     err::LoxError,
     token::{Token, TokenKind},
 };
 pub struct Scanner<'a> {
-    reader: Chars<'a>,
-    next_chars: VecDeque<char>,
+    reader: Peekable<Chars<'a>>,
     line: usize,
     next_token: Option<Token>,
 }
@@ -14,40 +13,14 @@ pub struct Scanner<'a> {
 impl<'a> Scanner<'a> {
     pub fn new(string: &'a String) -> Self {
         Self {
-            reader: string.chars(),
-            next_chars: VecDeque::new(),
+            reader: string.chars().peekable(),
             line: 1,
             next_token: None,
         }
     }
 
-    fn pop_char(&mut self) -> Option<char> {
-        match self.next_chars.pop_front() {
-            Some(c) => Some(c),
-            None => self.reader.next(),
-        }
-    }
-
-    fn peek_char(&mut self) -> Option<char> {
-        match self.next_chars.pop_front() {
-            Some(c) => {
-                self.next_chars.push_front(c);
-
-                Some(c)
-            }
-            None => match self.reader.next() {
-                Some(c) => {
-                    self.next_chars.push_back(c);
-
-                    Some(c)
-                }
-                None => None,
-            },
-        }
-    }
-
     fn next_char_matches(&mut self, expected_char: char) -> bool {
-        match self.peek_char() {
+        match self.reader.peek().cloned() {
             Some(c) => c == expected_char,
             None => false,
         }
@@ -73,7 +46,7 @@ impl<'a> Scanner<'a> {
         let mut buf: Vec<char> = Vec::new();
 
         loop {
-            match self.pop_char() {
+            match self.reader.next() {
                 Some('"') => break,
                 Some(c) => {
                     if c == '\n' {
@@ -97,10 +70,10 @@ impl<'a> Scanner<'a> {
         buf.push(starting_digit);
 
         loop {
-            match self.peek_char() {
+            match self.reader.peek().cloned() {
                 Some(c) if self.is_digit(c) || c == '.' => {
                     buf.push(c);
-                    self.pop_char();
+                    self.reader.next();
                 }
                 Some(_) | None => break,
             }
@@ -117,10 +90,10 @@ impl<'a> Scanner<'a> {
         buf.push(alpha_char);
 
         loop {
-            match self.peek_char() {
+            match self.reader.peek().cloned() {
                 Some(c) if self.is_alphanumeric(c) => {
                     buf.push(c);
-                    self.pop_char();
+                    self.reader.next();
                 }
                 Some(_) | None => break,
             }
@@ -158,7 +131,7 @@ impl<'a> Scanner<'a> {
 
     fn match_next_token(&mut self) -> Option<Result<Token, LoxError>> {
         loop {
-            let c = self.pop_char();
+            let c = self.reader.next();
 
             let token = match c {
                 Some('(') => self.create_token(TokenKind::LeftParen),
@@ -172,19 +145,35 @@ impl<'a> Scanner<'a> {
                 Some(';') => self.create_token(TokenKind::Semicolon),
                 Some('*') => self.create_token(TokenKind::Star),
                 Some('!') => match self.next_char_matches('=') {
-                    true => self.create_token(TokenKind::BangEqual),
+                    true => {
+                        self.reader.next();
+
+                        self.create_token(TokenKind::BangEqual)
+                    }
                     false => self.create_token(TokenKind::Bang),
                 },
                 Some('=') => match self.next_char_matches('=') {
-                    true => self.create_token(TokenKind::EqualEqual),
+                    true => {
+                        self.reader.next();
+
+                        self.create_token(TokenKind::EqualEqual)
+                    }
                     false => self.create_token(TokenKind::Equal),
                 },
                 Some('<') => match self.next_char_matches('=') {
-                    true => self.create_token(TokenKind::LessEqual),
+                    true => {
+                        self.reader.next();
+
+                        self.create_token(TokenKind::LessEqual)
+                    }
                     false => self.create_token(TokenKind::Less),
                 },
                 Some('>') => match self.next_char_matches('=') {
-                    true => self.create_token(TokenKind::GreaterEqual),
+                    true => {
+                        self.reader.next();
+
+                        self.create_token(TokenKind::GreaterEqual)
+                    }
                     false => self.create_token(TokenKind::Greater),
                 },
                 Some('/') => match self.next_char_matches('/') {

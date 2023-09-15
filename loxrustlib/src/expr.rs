@@ -103,10 +103,11 @@ impl Visitor for PrettyPrinter {
     }
 }
 
-pub trait Expression {
+pub trait Expression: std::fmt::Debug {
     fn accept(&self, visitor: &dyn Visitor);
 }
 
+#[derive(Debug)]
 pub struct Assign {
     pub name: Token,
     pub expr: Box<dyn Expression>,
@@ -124,6 +125,7 @@ impl Expression for Assign {
     }
 }
 
+#[derive(Debug)]
 pub struct Binary {
     pub left: Box<dyn Expression>,
     pub operator: Token,
@@ -146,6 +148,7 @@ impl Expression for Binary {
     }
 }
 
+#[derive(Debug)]
 pub struct Call {
     pub callee: Box<dyn Expression>,
     pub paren: Token,
@@ -172,6 +175,7 @@ impl Expression for Call {
     }
 }
 
+#[derive(Debug)]
 pub struct Grouping {
     pub expression: Box<dyn Expression>,
 }
@@ -188,6 +192,7 @@ impl Expression for Grouping {
     }
 }
 
+#[derive(Debug)]
 pub struct Literal {
     pub literal: Token,
 }
@@ -204,6 +209,7 @@ impl Expression for Literal {
     }
 }
 
+#[derive(Debug)]
 pub struct Logical {
     pub left: Box<dyn Expression>,
     pub operator: Token,
@@ -216,6 +222,7 @@ impl Expression for Logical {
     }
 }
 
+#[derive(Debug)]
 pub struct Get {
     pub expr: Box<dyn Expression>,
     pub name: Token,
@@ -227,6 +234,7 @@ impl Expression for Get {
     }
 }
 
+#[derive(Debug)]
 pub struct Set {
     pub object: Box<dyn Expression>,
     pub name: Token,
@@ -239,6 +247,7 @@ impl Expression for Set {
     }
 }
 
+#[derive(Debug)]
 pub struct Super {
     pub keyword: Token,
     pub method: Token,
@@ -250,6 +259,7 @@ impl Expression for Super {
     }
 }
 
+#[derive(Debug)]
 pub struct This {
     pub keyword: Token,
 }
@@ -260,6 +270,7 @@ impl Expression for This {
     }
 }
 
+#[derive(Debug)]
 pub struct Unary {
     pub operator: Token,
     pub right: Box<dyn Expression>,
@@ -277,6 +288,7 @@ impl Expression for Unary {
     }
 }
 
+#[derive(Debug)]
 pub struct Variable {
     pub name: Token,
 }

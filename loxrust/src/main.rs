@@ -1,6 +1,6 @@
 use std::{env, fs::read_to_string, io::Write};
 
-use loxrustlib::{scan, parser, expr};
+use loxrustlib::{expr, parser, scan};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
