@@ -225,6 +225,7 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Boolean(b),
                 ..
             }) => Ok(Box::new(Expression::LiteralBoolean(b))),
+            Some(Token { kind: TokenKind::Nil, .. }) => Ok(Box::new(Expression::Nil)),
             Some(_) => Err(LoxError::with_line("Unsupported expression", 0)),
             None => Err(LoxError::with_line("Expected expression.", 0)),
         }

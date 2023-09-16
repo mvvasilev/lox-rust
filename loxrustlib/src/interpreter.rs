@@ -1,3 +1,5 @@
+use std::mem;
+
 use crate::{
     err::LoxError,
     expr::{BinaryOperator, Expression, UnaryOperator},
@@ -100,28 +102,47 @@ impl Interpreter {
     {
         match *left {
             Expression::LiteralNumber(left_num) => {
+                if *right == Expression::Nil {
+                    return Ok(Box::new(Expression::LiteralBoolean(false)));
+                }
+
                 let Expression::LiteralNumber(right_num) = *right else { return Err(LoxError::with_message("Cannot compare unlike types")); };
 
                 Ok(Box::new(Expression::LiteralBoolean(n(
                     left_num, 
                     right_num,
                 ))))
-            }
+            },
             Expression::LiteralString(left_string) => {
+                if *right == Expression::Nil {
+                    return Ok(Box::new(Expression::LiteralBoolean(false)));
+                }
+                
                 let Expression::LiteralString(right_string) = *right else { return Err(LoxError::with_message("Cannot compare unlike types")); };
 
                 Ok(Box::new(Expression::LiteralBoolean(s(
                     left_string,
                     right_string,
                 ))))
-            }
+            },
             Expression::LiteralBoolean(left_bool) => {
+                if *right == Expression::Nil {
+                    return Ok(Box::new(Expression::LiteralBoolean(false)));
+                }
+
                 let Expression::LiteralBoolean(right_bool) = *right else { return Err(LoxError::with_message("Cannot compare unlike types")); };
 
                 Ok(Box::new(Expression::LiteralBoolean(b(
                     left_bool, 
                     right_bool,
                 ))))
+            },
+            Expression::Nil => {
+                if *right == Expression::Nil {
+                    Ok(Box::new(Expression::LiteralBoolean(true)))
+                } else {
+                    Ok(Box::new(Expression::LiteralBoolean(false)))
+                }
             }
             _ => Err(LoxError::with_message("Invalid expression for comparison")),
         }

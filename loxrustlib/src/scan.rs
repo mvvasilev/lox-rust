@@ -48,6 +48,12 @@ impl<'a> Scanner<'a> {
         loop {
             match self.reader.next() {
                 Some('"') => break,
+                Some('\\') => {
+                    if self.reader.peek() == Some(&'"') {
+                        buf.push('"');
+                        self.reader.next();
+                    }
+                }
                 Some(c) => {
                     if c == '\n' {
                         self.line += 1;
