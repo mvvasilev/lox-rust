@@ -8,6 +8,14 @@ pub struct LoxError {
 }
 
 impl LoxError {
+    pub fn with_message(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+            line: 0,
+            internal: None,
+        }
+    }
+
     pub fn with_line(message: &str, line: usize) -> Self {
         Self {
             message: message.to_string(),

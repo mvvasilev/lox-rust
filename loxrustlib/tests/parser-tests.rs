@@ -1,17 +1,13 @@
-use loxrustlib::{
-    expr::{Binary, Literal},
-    parser::Parser,
-    scan::Scanner,
-    token::{Token, TokenKind},
-};
+use loxrustlib::{expr::BinaryOperator, expr::Expression, parser::Parser, scan::Scanner};
 
 #[test]
 pub fn parser_equality_test() {
-    let expected_tree = Box::new(Binary::new(
-        Box::new(Literal::new(Token::new(TokenKind::Number(5.0), 1))),
-        Token::new(TokenKind::EqualEqual, 1),
-        Box::new(Literal::new(Token::new(TokenKind::Number(5.0), 1))),
-    ));
+    let expected_tree = Box::new(Expression::Binary {
+        left: Box::new(Expression::LiteralNumber(5.0)),
+        operator: BinaryOperator::Equal,
+        right: Box::new(Expression::LiteralNumber(5.0)),
+    });
+
     let input = "5 == 5".to_string();
 
     let scanner = Scanner::new(&input);
