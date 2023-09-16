@@ -19,7 +19,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn next_char_matches(&mut self, expected_char: char) -> bool {
+    fn peek_match(&mut self, expected_char: char) -> bool {
         match self.reader.peek().cloned() {
             Some(c) => c == expected_char,
             None => false,
@@ -144,7 +144,7 @@ impl<'a> Scanner<'a> {
                 Some('+') => self.create_token(TokenKind::Plus),
                 Some(';') => self.create_token(TokenKind::Semicolon),
                 Some('*') => self.create_token(TokenKind::Star),
-                Some('!') => match self.next_char_matches('=') {
+                Some('!') => match self.peek_match('=') {
                     true => {
                         self.reader.next();
 
@@ -152,7 +152,7 @@ impl<'a> Scanner<'a> {
                     }
                     false => self.create_token(TokenKind::Bang),
                 },
-                Some('=') => match self.next_char_matches('=') {
+                Some('=') => match self.peek_match('=') {
                     true => {
                         self.reader.next();
 
@@ -160,7 +160,7 @@ impl<'a> Scanner<'a> {
                     }
                     false => self.create_token(TokenKind::Equal),
                 },
-                Some('<') => match self.next_char_matches('=') {
+                Some('<') => match self.peek_match('=') {
                     true => {
                         self.reader.next();
 
@@ -168,7 +168,7 @@ impl<'a> Scanner<'a> {
                     }
                     false => self.create_token(TokenKind::Less),
                 },
-                Some('>') => match self.next_char_matches('=') {
+                Some('>') => match self.peek_match('=') {
                     true => {
                         self.reader.next();
 
@@ -176,7 +176,7 @@ impl<'a> Scanner<'a> {
                     }
                     false => self.create_token(TokenKind::Greater),
                 },
-                Some('/') => match self.next_char_matches('/') {
+                Some('/') => match self.peek_match('/') {
                     // if there's a second slash, this is a comment - pop characters until the next newline
                     true => match self.reader.find(|&next_c| next_c == '\n') {
                         Some(_) => continue,

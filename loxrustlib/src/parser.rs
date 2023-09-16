@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     err::LoxError,
-    expr::{Binary, Expression, Grouping, Literal, Unary},
+    expr::{Binary, Comma, Expression, Grouping, Literal, Unary},
     scan::Scanner,
     token::{Token, TokenKind},
 };
@@ -128,13 +128,34 @@ impl<'a> Parser<'a> {
                 let expr = self.expression()?;
                 let Some(Ok(next_token)) = self.scanner.next() else { return Err(LoxError::with_line("Expected closing parenthesis ')'.", line)) };
 
-                if next_token.kind == TokenKind::RightParen {
-                    Ok(Box::new(Grouping::new(expr)))
-                } else {
-                    Err(LoxError::with_line(
+                match next_token.kind {
+                    TokenKind::RightParen => Ok(Box::new(Grouping::new(expr))),
+                    TokenKind::Comma => {
+                        let mut expressions: Vec<Box<dyn Expression>> = Vec::new();
+
+                        expressions.push(expr);
+
+                        loop {
+                            let next_expr = self.expression()?;
+
+                            expressions.push(next_expr);
+
+                            let Some(Ok(next_token)) = self.scanner.next() else { return Err(LoxError::with_line("Expected comma ',' or closing parenthesis ')'.", line)) };
+
+                            return match next_token.kind {
+                                TokenKind::RightParen => Ok(Box::new(Comma::new(expressions))),
+                                TokenKind::Comma => continue,
+                                _ => Err(LoxError::with_line(
+                                    "Expected comma ',' or closing parenthesis ')'.",
+                                    line,
+                                )),
+                            };
+                        }
+                    }
+                    _ => Err(LoxError::with_line(
                         "Expected closing parenthesis ')'.",
                         line,
-                    ))
+                    )),
                 }
             }
             Some(t) => Ok(Box::new(Literal::new(t))),

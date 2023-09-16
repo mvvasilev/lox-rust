@@ -1,6 +1,6 @@
 use std::{env, fs::read_to_string, io::Write};
 
-use loxrustlib::{expr, parser, scan};
+use loxrustlib::{expr, parser, printer, scan};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -18,13 +18,15 @@ fn main() {
 
         match parser.parse() {
             Some(tree) => {
-                let printer = expr::PrettyPrinter::new();
+                let printer = printer::PrettyPrinter::new();
 
                 printer.print(&tree.into())
             }
             None => println!("Failed to parse: Invalid syntax"),
         }
     } else {
+        let mut buffer: Vec<String> = Vec::new();
+
         loop {
             let input = prompt("> ");
 
@@ -32,12 +34,14 @@ fn main() {
                 break;
             };
 
+            buffer.push(input.clone());
+
             let scanner = scan::Scanner::new(&input);
             let mut parser = parser::Parser::new(scanner);
 
             match parser.parse() {
                 Some(tree) => {
-                    let printer = expr::PrettyPrinter::new();
+                    let printer = printer::PrettyPrinter::new();
 
                     printer.print(&tree.into())
                 }

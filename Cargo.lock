@@ -3,14 +3,14 @@
 version = 3
 
 [[package]]
-name = "loxrus_workspace"
+name = "loxrust"
 version = "0.1.0"
 dependencies = [
  "loxrustlib",
 ]
 
 [[package]]
-name = "loxrust"
+name = "loxrust_workspace"
 version = "0.1.0"
 dependencies = [
  "loxrustlib",
