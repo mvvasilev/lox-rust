@@ -72,7 +72,7 @@ impl Interpreter {
                     return Err(LoxError::with_message("Division by 0"));
                 }
 
-                Ok(n1 + n2)
+                Ok(n1 / n2)
             }),
         }
     }
