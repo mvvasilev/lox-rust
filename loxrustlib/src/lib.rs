@@ -4,4 +4,5 @@ pub mod interpreter;
 pub mod parser;
 pub mod printer;
 pub mod scan;
+pub mod stmt;
 pub mod token;

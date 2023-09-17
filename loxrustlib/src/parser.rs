@@ -1,37 +1,61 @@
-use std::mem;
+use std::{iter::Peekable, mem};
 
 use crate::{
     err::LoxError,
     expr::{BinaryOperator, Expression, UnaryOperator},
     scan::Scanner,
+    stmt::Statement,
     token::{Token, TokenKind},
 };
 
 pub struct Parser<'a> {
-    scanner: Scanner<'a>,
+    scanner: Peekable<Scanner<'a>>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(scanner: Scanner<'a>) -> Self {
-        Self { scanner }
+        Self {
+            scanner: scanner.peekable(),
+        }
     }
 
-    fn match_next(&mut self, args: &[TokenKind]) -> Option<Token> {
+    fn match_peeked_token(peeked: &TokenKind, args: &[TokenKind]) -> bool {
         for ele in args {
-            match self.scanner.peek() {
-                Some(Ok(t)) => {
-                    if mem::discriminant(&t.kind) == mem::discriminant(ele) {
-                        self.scanner.pop();
-
-                        return Some(t);
-                    }
-                }
-                Some(Err(_e)) => continue,
-                None => continue,
+            if mem::discriminant(peeked) == mem::discriminant(ele) {
+                return true;
             }
         }
 
-        return None;
+        return false;
+    }
+
+    fn match_next(&mut self, args: &[TokenKind]) -> Option<Token> {
+        let Some(Ok(next_token)) = self.scanner.peek().cloned() else { return None; };
+
+        if Parser::match_peeked_token(&next_token.kind, args) {
+            self.scanner.next(); // only consume the token if it matched
+
+            return Some(next_token.clone()); // Yes, the token is one of the ones in the arguments - return it
+        }
+
+        None // No, the token isn't any of the ones provided - return none
+    }
+
+    fn consume_next(
+        &mut self,
+        expected_kind: &TokenKind,
+        err_if_not_kind: LoxError,
+    ) -> Result<(), LoxError> {
+        if let Some(Ok(Token { kind, .. })) = self.scanner.peek() {
+            if kind == expected_kind {
+                self.scanner.next();
+
+                // if-let with && is not supported. Bummer.
+                return Ok(());
+            }
+        }
+
+        Err(err_if_not_kind)
     }
 
     fn parse_token_as_unary_op(&self, token: &Token) -> Result<UnaryOperator, LoxError> {
@@ -64,15 +88,56 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Option<Box<Expression>> {
-        match self.expression() {
-            Ok(b) => Some(b),
-            Err(e) => {
-                print!("{}", e);
+    pub fn parse(&mut self) -> Result<Vec<Statement>, LoxError> {
+        let mut result = Vec::new();
 
-                None
+        loop {
+            if let Some(Ok(Token {
+                kind: TokenKind::Eof,
+                ..
+            })) = self.scanner.peek()
+            {
+                break;
             }
+
+            result.push(self.statement()?);
         }
+
+        Ok(result)
+    }
+
+    fn statement(&mut self) -> Result<Statement, LoxError> {
+        if let Some(Token {
+            kind: TokenKind::Print,
+            ..
+        }) = self.match_next(&[TokenKind::Print])
+        {
+            return self.print_statement();
+        }
+
+        self.expression_statement()
+    }
+
+    fn print_statement(&mut self) -> Result<Statement, LoxError> {
+        let value = self.expression()?;
+
+        self.consume_next(
+            &TokenKind::Semicolon,
+            LoxError::with_message("Expected semicolon ';' to terminate statement."),
+        )?;
+
+        Ok(Statement::PrintStatement { printable: value })
+    }
+
+    fn expression_statement(&mut self) -> Result<Statement, LoxError> {
+        let value = self.expression()?;
+
+        self.consume_next(
+            &TokenKind::Semicolon,
+            LoxError::with_message("Expected semicolon ';' to terminate statement."),
+        )?;
+
+        Ok(Statement::ExpressionStatement { expression: value })
     }
 
     fn expression(&mut self) -> Result<Box<Expression>, LoxError> {
@@ -225,8 +290,11 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Boolean(b),
                 ..
             }) => Ok(Box::new(Expression::LiteralBoolean(b))),
-            Some(Token { kind: TokenKind::Nil, .. }) => Ok(Box::new(Expression::Nil)),
-            Some(_) => Err(LoxError::with_line("Unsupported expression", 0)),
+            Some(Token {
+                kind: TokenKind::Nil,
+                ..
+            }) => Ok(Box::new(Expression::Nil)),
+            Some(_) => Err(LoxError::with_line("Unsupported expression.", 0)),
             None => Err(LoxError::with_line("Expected expression.", 0)),
         }
     }

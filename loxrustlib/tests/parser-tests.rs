@@ -15,7 +15,7 @@ pub fn parser_equality_test() {
 
     let output = parser.parse();
 
-    assert!(output.is_some());
+    assert!(output.is_ok());
     assert_eq!(
         format!("{:?}", expected_tree),
         format!("{:?}", output.unwrap())

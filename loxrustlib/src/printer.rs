@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::expr::{Expression, BinaryOperator, UnaryOperator};
+use crate::expr::{BinaryOperator, Expression, UnaryOperator};
 
 pub struct PrettyPrinter {}
 
@@ -46,6 +46,18 @@ impl PrettyPrinter {
         }
 
         buffer
+    }
+}
+
+impl Display for Expression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expression::LiteralNumber(n) => write!(f, "{}", n),
+            Expression::LiteralBoolean(b) => write!(f, "{}", b),
+            Expression::LiteralString(s) => write!(f, "{}", s),
+            Expression::Nil => write!(f, "nil"),
+            e => write!(f, "{:?}", e),
+        }
     }
 }
 

@@ -7,7 +7,6 @@ use crate::{
 pub struct Scanner<'a> {
     reader: Peekable<Chars<'a>>,
     line: usize,
-    next_token: Option<Token>,
 }
 
 impl<'a> Scanner<'a> {
@@ -15,7 +14,6 @@ impl<'a> Scanner<'a> {
         Self {
             reader: string.chars().peekable(),
             line: 1,
-            next_token: None,
         }
     }
 
@@ -215,16 +213,6 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn peek(&mut self) -> Option<Result<Token, LoxError>> {
-        self.next_token.clone().map(|t| Ok(t)).or_else(|| {
-            Some(self.next()?.map(|t| {
-                self.next_token = Some(t.clone());
-
-                t
-            }))
-        })
-    }
-
     pub fn pop(&mut self) -> Option<Result<Token, LoxError>> {
         self.next()
     }
@@ -234,13 +222,6 @@ impl<'a> Iterator for Scanner<'a> {
     type Item = Result<Token, LoxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.next_token.take() {
-            Some(t) => {
-                self.next_token = None;
-
-                return Some(Ok(t));
-            }
-            None => self.match_next_token(),
-        }
+        self.match_next_token()
     }
 }

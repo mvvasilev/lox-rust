@@ -1,9 +1,11 @@
 use std::{env, fs::read_to_string, io::Write};
 
-use loxrustlib::{parser, printer, scan, interpreter};
+use loxrustlib::{interpreter, parser, scan};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+
+    let interpreter = interpreter::Interpreter::new();
 
     if args.len() > 2 {
         print!("Usage: rlox [script]");
@@ -16,17 +18,19 @@ fn main() {
         let scanner = scan::Scanner::new(&scan);
         let mut parser = parser::Parser::new(scanner);
 
-        match parser.parse() {
-            Some(tree) => {
-                let printer = printer::PrettyPrinter::new();
-
-                println!("{}", printer.pretty_print(tree.into()))
+        let statements = match parser.parse() {
+            Ok(s) => s,
+            Err(e) => {
+                println!("Failed to parse: {}", e);
+                return;
             }
-            None => println!("Failed to parse: Invalid syntax"),
+        };
+
+        match interpreter.interpret(statements) {
+            Ok(_) => (),
+            Err(e) => println!("Failed to execute: {}", e),
         }
     } else {
-        let mut buffer: Vec<String> = Vec::new();
-
         loop {
             let input = prompt("> ");
 
@@ -34,18 +38,20 @@ fn main() {
                 break;
             };
 
-            buffer.push(input.clone());
-
             let scanner = scan::Scanner::new(&input);
             let mut parser = parser::Parser::new(scanner);
 
-            match parser.parse() {
-                Some(tree) => {
-                    let printer = interpreter::Interpreter::new();
-
-                    printer.interpret(tree.into())
+            let statements = match parser.parse() {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("Failed to parse: {}", e);
+                    continue;
                 }
-                None => println!("Failed to parse '{}': Invalid syntax", input),
+            };
+
+            match interpreter.interpret(statements) {
+                Ok(_) => (),
+                Err(e) => println!("Failed to execute: {}", e),
             }
         }
     }
