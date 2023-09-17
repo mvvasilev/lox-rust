@@ -5,7 +5,7 @@ use loxrustlib::{interpreter, parser, scan};
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let interpreter = interpreter::Interpreter::new();
+    let mut interpreter = interpreter::Interpreter::new();
 
     if args.len() > 2 {
         print!("Usage: rlox [script]");

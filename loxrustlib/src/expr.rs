@@ -39,4 +39,5 @@ pub enum Expression {
     LiteralBoolean(bool),
     LiteralString(String),
     Nil,
+    Variable(String),
 }

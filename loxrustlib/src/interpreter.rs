@@ -1,50 +1,47 @@
 use crate::{
     err::LoxError,
     expr::{BinaryOperator, Expression, UnaryOperator},
-    printer::PrettyPrinter,
-    stmt::Statement,
+    stmt::Statement, environment::Environment,
 };
 
-pub struct Interpreter {}
+pub struct Interpreter {
+    environment: Environment
+}
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {}
+        Self { environment: Environment::new() }
     }
 
-    pub fn interpret(&self, statements: Vec<Statement>) -> Result<(), LoxError> {
+    pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<(), LoxError> {
         for s in statements {
             self.execute(s)?
         }
 
         Ok(())
-
-        //let printer = PrettyPrinter::new();
-
-        // println!("{}", printer.pretty_print(expression.clone()));
-
-        // match self.evaluate(expression) {
-        //     Ok(r) => println!("{}", printer.pretty_print(r)),
-        //     Err(e) => println!("Failed to interpret, met error: {}", e),
-        // }
     }
 
-    fn execute(&self, statement: Statement) -> Result<(), LoxError> {
+    fn execute(&mut self, statement: Statement) -> Result<(), LoxError> {
         match statement {
             Statement::ExpressionStatement { expression } => {
                 self.evaluate(expression)?;
 
                 Ok(())
-            }
+            },
             Statement::PrintStatement { printable } => {
                 self.print(printable)?;
+
+                Ok(())
+            },
+            Statement::VariableDeclaration { identifier, initializer } => {
+                self.declare_variable(identifier, initializer)?;
 
                 Ok(())
             }
         }
     }
 
-    fn print(&self, expr: Box<Expression>) -> Result<(), LoxError> {
+    fn print(&mut self, expr: Box<Expression>) -> Result<(), LoxError> {
         let result = self.evaluate(expr)?;
 
         println!("{}", result);
@@ -52,7 +49,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn evaluate(&self, expression: Box<Expression>) -> Result<Box<Expression>, LoxError> {
+    fn evaluate(&mut self, expression: Box<Expression>) -> Result<Box<Expression>, LoxError> {
         match *expression {
             Expression::Binary {
                 left,
@@ -62,12 +59,23 @@ impl Interpreter {
             Expression::Unary { operator, right } => self.eval_unary_expression(operator, right),
             Expression::Comma { expressions } => self.eval_comma_expression(expressions),
             Expression::Grouping { expression } => self.evaluate(expression),
+            Expression::Variable(s) => {
+                let Some(v) = self.environment.get(&s) else { return Err(LoxError::with_message(&format!("Use of undefined variable '{}'", s))); };
+
+                Ok(v)
+            },
             _ => Ok(expression),
         }
     }
 
+    fn declare_variable(&mut self, identifier: String, initializer: Option<Box<Expression>>) -> Result<(), LoxError> {
+        self.environment.define(identifier, initializer);
+
+        Ok(())
+    }
+
     fn eval_comma_expression(
-        &self,
+        &mut self,
         expressions: Vec<Box<Expression>>,
     ) -> Result<Box<Expression>, LoxError> {
         let Some(last) = expressions.last() else { return Err(LoxError::with_message("Invalid comma operator")); };
@@ -76,7 +84,7 @@ impl Interpreter {
     }
 
     fn eval_unary_expression(
-        &self,
+        &mut self,
         operator: UnaryOperator,
         right: Box<Expression>,
     ) -> Result<Box<Expression>, LoxError> {
@@ -95,7 +103,7 @@ impl Interpreter {
     }
 
     fn eval_binary_expression(
-        &self,
+        &mut self,
         left: Box<Expression>,
         operator: BinaryOperator,
         right: Box<Expression>,
@@ -241,7 +249,7 @@ impl Interpreter {
                 } else {
                     Ok(Box::new(Expression::LiteralBoolean(false)))
                 }
-            }
+            },
             _ => Err(LoxError::with_message("Invalid expression for comparison")),
         }
     }

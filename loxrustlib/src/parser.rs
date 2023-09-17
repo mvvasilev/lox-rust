@@ -35,6 +35,8 @@ impl<'a> Parser<'a> {
         if Parser::match_peeked_token(&next_token.kind, args) {
             self.scanner.next(); // only consume the token if it matched
 
+            // println!("Marched {}", &next_token.kind);
+
             return Some(next_token.clone()); // Yes, the token is one of the ones in the arguments - return it
         }
 
@@ -45,13 +47,13 @@ impl<'a> Parser<'a> {
         &mut self,
         expected_kind: &TokenKind,
         err_if_not_kind: LoxError,
-    ) -> Result<(), LoxError> {
+    ) -> Result<Token, LoxError> {
         if let Some(Ok(Token { kind, .. })) = self.scanner.peek() {
             if kind == expected_kind {
-                self.scanner.next();
+                let Some(Ok(token)) = self.scanner.next() else { return Err(LoxError::with_message("Token is of unexpected kind")); };
 
                 // if-let with && is not supported. Bummer.
-                return Ok(());
+                return Ok(token);
             }
         }
 
@@ -100,10 +102,41 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            result.push(self.statement()?);
+            result.push(self.declaration()?);
         }
 
         Ok(result)
+    }
+
+    fn declaration(&mut self) -> Result<Statement, LoxError> {
+        if let Some(Token {
+            kind: TokenKind::Var,
+            ..
+        }) = self.match_next(&[TokenKind::Var])
+        {
+            return self.variable_declaration_statement();
+        }
+
+        self.statement()
+    }
+
+    fn variable_declaration_statement(&mut self) -> Result<Statement, LoxError> {
+        let Some(Token { kind: TokenKind::Identifier(identifier), .. }) = self.match_next(&[TokenKind::Identifier(String::default())]) else { 
+            return Err(LoxError::with_message("Expected variable identifier.")); 
+        };
+
+        let mut initializer = None;
+
+        if self.match_next(&[TokenKind::Equal]).is_some() {
+            initializer = Some(self.expression()?);
+        }
+
+        self.consume_next(&TokenKind::Semicolon, LoxError::with_message("Expected semicolon ';' to terminate statement."))?;
+
+        Ok(Statement::VariableDeclaration {
+            identifier,
+            initializer,
+        })
     }
 
     fn statement(&mut self) -> Result<Statement, LoxError> {
@@ -235,6 +268,7 @@ impl<'a> Parser<'a> {
             TokenKind::Boolean(bool::default()),
             TokenKind::Number(f64::default()),
             TokenKind::String(String::default()),
+            TokenKind::Identifier(String::default()),
             TokenKind::LeftParen,
         ]) {
             Some(Token {
@@ -278,22 +312,11 @@ impl<'a> Parser<'a> {
                     )),
                 }
             }
-            Some(Token {
-                kind: TokenKind::Number(n),
-                ..
-            }) => Ok(Box::new(Expression::LiteralNumber(n))),
-            Some(Token {
-                kind: TokenKind::String(s),
-                ..
-            }) => Ok(Box::new(Expression::LiteralString(s))),
-            Some(Token {
-                kind: TokenKind::Boolean(b),
-                ..
-            }) => Ok(Box::new(Expression::LiteralBoolean(b))),
-            Some(Token {
-                kind: TokenKind::Nil,
-                ..
-            }) => Ok(Box::new(Expression::Nil)),
+            Some(Token { kind: TokenKind::Number(n), .. }) => Ok(Box::new(Expression::LiteralNumber(n))),
+            Some(Token { kind: TokenKind::String(s), .. }) => Ok(Box::new(Expression::LiteralString(s))),
+            Some(Token { kind: TokenKind::Boolean(b), .. }) => Ok(Box::new(Expression::LiteralBoolean(b))),
+            Some(Token { kind: TokenKind::Nil, .. }) => Ok(Box::new(Expression::Nil)),
+            Some(Token { kind: TokenKind::Identifier(s), .. }) => Ok(Box::new(Expression::Variable(s))),
             Some(_) => Err(LoxError::with_line("Unsupported expression.", 0)),
             None => Err(LoxError::with_line("Expected expression.", 0)),
         }

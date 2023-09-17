@@ -43,6 +43,7 @@ impl PrettyPrinter {
             Expression::LiteralBoolean(b) => buffer.push_str(&format!("{}", b)),
             Expression::LiteralString(s) => buffer.push_str(&s),
             Expression::Nil => buffer.push_str("nil"),
+            Expression::Variable(s) => buffer.push_str(&format!("var {}", s)),
         }
 
         buffer
@@ -56,6 +57,7 @@ impl Display for Expression {
             Expression::LiteralBoolean(b) => write!(f, "{}", b),
             Expression::LiteralString(s) => write!(f, "{}", s),
             Expression::Nil => write!(f, "nil"),
+            Expression::Variable(s) => write!(f, "var {}", s),
             e => write!(f, "{:?}", e),
         }
     }

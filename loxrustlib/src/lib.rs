@@ -6,3 +6,4 @@ pub mod printer;
 pub mod scan;
 pub mod stmt;
 pub mod token;
+pub mod environment;
