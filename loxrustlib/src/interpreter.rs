@@ -91,9 +91,18 @@ impl Interpreter {
         &mut self,
         expressions: Vec<Box<Expression>>,
     ) -> Result<Box<Expression>, LoxError> {
-        let Some(last) = expressions.last() else { return Err(LoxError::with_message("Invalid comma operator")); };
+        
+        let mut i = 0;
 
-        self.evaluate(last.clone()) // bad
+        loop {
+            i += 1;
+
+            let result = self.evaluate(expressions[i])?;
+
+            if i == expressions.len() - 1 {
+                return Ok(result);
+            }
+        }
     }
 
     fn eval_unary_expression(
