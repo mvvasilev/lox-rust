@@ -1,7 +1,7 @@
 use crate::{
     err::LoxError,
     expr::{BinaryOperator, Expression, UnaryOperator},
-    stmt::Statement, environment::Environment,
+    stmt::Statement, environment::Environment, token::Token,
 };
 
 pub struct Interpreter {
@@ -34,7 +34,7 @@ impl Interpreter {
                 Ok(())
             },
             Statement::VariableDeclaration { identifier, initializer } => {
-                self.declare_variable(identifier, initializer)?;
+                self.declare_variable(identifier.into(), initializer)?;
 
                 Ok(())
             }
@@ -51,6 +51,7 @@ impl Interpreter {
 
     fn evaluate(&mut self, expression: Box<Expression>) -> Result<Box<Expression>, LoxError> {
         match *expression {
+            Expression::Assignment { identifier, expression } => self.eval_assignment_expression(identifier, expression),
             Expression::Binary {
                 left,
                 operator,
@@ -59,8 +60,8 @@ impl Interpreter {
             Expression::Unary { operator, right } => self.eval_unary_expression(operator, right),
             Expression::Comma { expressions } => self.eval_comma_expression(expressions),
             Expression::Grouping { expression } => self.evaluate(expression),
-            Expression::Variable(s) => {
-                let Some(v) = self.environment.get(&s) else { return Err(LoxError::with_message(&format!("Use of undefined variable '{}'", s))); };
+            Expression::Variable(t) => {
+                let Some(v) = self.environment.get(t.clone().into()) else { return Err(LoxError::with_message(&format!("Use of undefined variable '{}'", t))); };
 
                 Ok(v)
             },
@@ -68,10 +69,22 @@ impl Interpreter {
         }
     }
 
-    fn declare_variable(&mut self, identifier: String, initializer: Option<Box<Expression>>) -> Result<(), LoxError> {
-        self.environment.define(identifier, initializer);
+
+
+    fn declare_variable(&mut self, identifier: Token, initializer: Option<Box<Expression>>) -> Result<(), LoxError> {
+        let init = initializer.map(|init| self.evaluate(init)).transpose()?;
+
+        self.environment.define(identifier.into(), init);
 
         Ok(())
+    }
+
+    fn eval_assignment_expression(&mut self, identifier: Token, expression: Box<Expression>) -> Result<Box<Expression>, LoxError> {
+        let value = self.evaluate(expression)?;
+
+        self.environment.assign(identifier.into(), value.clone())?;
+
+        Ok(value)
     }
 
     fn eval_comma_expression(

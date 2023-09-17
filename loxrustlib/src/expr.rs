@@ -1,3 +1,5 @@
+use crate::token::Token;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     Minus,
@@ -20,6 +22,10 @@ pub enum UnaryOperator {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
+    Assignment {
+        identifier: Token,
+        expression: Box<Expression>
+    },
     Binary {
         left: Box<Expression>,
         operator: BinaryOperator,
@@ -39,5 +45,5 @@ pub enum Expression {
     LiteralBoolean(bool),
     LiteralString(String),
     Nil,
-    Variable(String),
+    Variable(Token),
 }

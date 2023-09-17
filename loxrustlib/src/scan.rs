@@ -36,8 +36,12 @@ impl<'a> Scanner<'a> {
         self.is_alphabetical(c) || self.is_digit(c)
     }
 
-    fn create_token(&self, kind: TokenKind) -> Token {
-        Token::new(kind, self.line)
+    fn create_token(&self, kind: TokenKind, lexeme: String) -> Token {
+        Token::new(kind, lexeme, self.line)
+    }
+
+    fn create_token_str(&self, kind: TokenKind, lexeme: &str) -> Token {
+        Token::new(kind, lexeme.to_string(), self.line)
     }
 
     fn create_string_token(&mut self) -> Result<Token, LoxError> {
@@ -63,8 +67,11 @@ impl<'a> Scanner<'a> {
             }
         }
 
+        let lexeme = String::from_iter(buf);
+
         Ok(Token::new(
-            TokenKind::String(String::from_iter(buf)),
+            TokenKind::String(lexeme.clone()),
+            lexeme,
             self.line,
         ))
     }
@@ -83,8 +90,11 @@ impl<'a> Scanner<'a> {
             }
         }
 
+        let lexeme = String::from_iter(buf);
+
         Ok(Token::new(
-            TokenKind::Number(String::from_iter(buf).parse().unwrap()),
+            TokenKind::Number(lexeme.parse().unwrap()),
+            lexeme,
             self.line,
         ))
     }
@@ -105,30 +115,30 @@ impl<'a> Scanner<'a> {
 
         let ident = String::from_iter(buf);
 
-        match self.match_keyword(&ident) {
+        match self.match_keyword(ident.clone()) {
             Some(token) => return Ok(token),
-            None => return Ok(self.create_token(TokenKind::Identifier(ident))),
+            None => return Ok(self.create_token(TokenKind::Identifier(ident.clone()), ident)),
         }
     }
 
-    fn match_keyword(&self, identifier: &str) -> Option<Token> {
-        match identifier {
-            "and" => Some(self.create_token(TokenKind::And)),
-            "class" => Some(self.create_token(TokenKind::Class)),
-            "else" => Some(self.create_token(TokenKind::Else)),
-            "false" => Some(self.create_token(TokenKind::Boolean(false))),
-            "for" => Some(self.create_token(TokenKind::For)),
-            "fun" => Some(self.create_token(TokenKind::Fun)),
-            "if" => Some(self.create_token(TokenKind::If)),
-            "nil" => Some(self.create_token(TokenKind::Nil)),
-            "or" => Some(self.create_token(TokenKind::Or)),
-            "print" => Some(self.create_token(TokenKind::Print)),
-            "super" => Some(self.create_token(TokenKind::Super)),
-            "this" => Some(self.create_token(TokenKind::This)),
-            "true" => Some(self.create_token(TokenKind::Boolean(true))),
-            "var" => Some(self.create_token(TokenKind::Var)),
-            "while" => Some(self.create_token(TokenKind::While)),
-            "return" => Some(self.create_token(TokenKind::Return)),
+    fn match_keyword(&self, identifier: String) -> Option<Token> {
+        match identifier.as_str() {
+            "and" => Some(self.create_token(TokenKind::And, identifier)),
+            "class" => Some(self.create_token(TokenKind::Class, identifier)),
+            "else" => Some(self.create_token(TokenKind::Else, identifier)),
+            "false" => Some(self.create_token(TokenKind::Boolean(false), identifier)),
+            "for" => Some(self.create_token(TokenKind::For, identifier)),
+            "fun" => Some(self.create_token(TokenKind::Fun, identifier)),
+            "if" => Some(self.create_token(TokenKind::If, identifier)),
+            "nil" => Some(self.create_token(TokenKind::Nil, identifier)),
+            "or" => Some(self.create_token(TokenKind::Or, identifier)),
+            "print" => Some(self.create_token(TokenKind::Print, identifier)),
+            "super" => Some(self.create_token(TokenKind::Super, identifier)),
+            "this" => Some(self.create_token(TokenKind::This, identifier)),
+            "true" => Some(self.create_token(TokenKind::Boolean(true), identifier)),
+            "var" => Some(self.create_token(TokenKind::Var, identifier)),
+            "while" => Some(self.create_token(TokenKind::While, identifier)),
+            "return" => Some(self.create_token(TokenKind::Return, identifier)),
             _ => None,
         }
     }
@@ -138,55 +148,55 @@ impl<'a> Scanner<'a> {
             let c = self.reader.next();
 
             let token = match c {
-                Some('(') => self.create_token(TokenKind::LeftParen),
-                Some(')') => self.create_token(TokenKind::RightParen),
-                Some('{') => self.create_token(TokenKind::LeftBrace),
-                Some('}') => self.create_token(TokenKind::RightBrace),
-                Some(',') => self.create_token(TokenKind::Comma),
-                Some('.') => self.create_token(TokenKind::Dot),
-                Some('-') => self.create_token(TokenKind::Minus),
-                Some('+') => self.create_token(TokenKind::Plus),
-                Some(';') => self.create_token(TokenKind::Semicolon),
-                Some('*') => self.create_token(TokenKind::Star),
+                Some('(') => self.create_token_str(TokenKind::LeftParen, "("),
+                Some(')') => self.create_token_str(TokenKind::RightParen, ")"),
+                Some('{') => self.create_token_str(TokenKind::LeftBrace, "{"),
+                Some('}') => self.create_token_str(TokenKind::RightBrace, "}"),
+                Some(',') => self.create_token_str(TokenKind::Comma, ","),
+                Some('.') => self.create_token_str(TokenKind::Dot, "."),
+                Some('-') => self.create_token_str(TokenKind::Minus, "-"),
+                Some('+') => self.create_token_str(TokenKind::Plus, "+"),
+                Some(';') => self.create_token_str(TokenKind::Semicolon, ";"),
+                Some('*') => self.create_token_str(TokenKind::Star, "*"),
                 Some('!') => match self.peek_match('=') {
                     true => {
                         self.reader.next();
 
-                        self.create_token(TokenKind::BangEqual)
+                        self.create_token_str(TokenKind::BangEqual, "!=")
                     }
-                    false => self.create_token(TokenKind::Bang),
+                    false => self.create_token_str(TokenKind::Bang, "!"),
                 },
                 Some('=') => match self.peek_match('=') {
                     true => {
                         self.reader.next();
 
-                        self.create_token(TokenKind::EqualEqual)
+                        self.create_token_str(TokenKind::EqualEqual, "==")
                     }
-                    false => self.create_token(TokenKind::Equal),
+                    false => self.create_token_str(TokenKind::Equal, "="),
                 },
                 Some('<') => match self.peek_match('=') {
                     true => {
                         self.reader.next();
 
-                        self.create_token(TokenKind::LessEqual)
+                        self.create_token_str(TokenKind::LessEqual, "<=")
                     }
-                    false => self.create_token(TokenKind::Less),
+                    false => self.create_token_str(TokenKind::Less, "<"),
                 },
                 Some('>') => match self.peek_match('=') {
                     true => {
                         self.reader.next();
 
-                        self.create_token(TokenKind::GreaterEqual)
+                        self.create_token_str(TokenKind::GreaterEqual, ">=")
                     }
-                    false => self.create_token(TokenKind::Greater),
+                    false => self.create_token_str(TokenKind::Greater, ">"),
                 },
                 Some('/') => match self.peek_match('/') {
                     // if there's a second slash, this is a comment - pop characters until the next newline
                     true => match self.reader.find(|&next_c| next_c == '\n') {
                         Some(_) => continue,
-                        None => self.create_token(TokenKind::Eof),
+                        None => self.create_token_str(TokenKind::Eof, "eof"),
                     },
-                    false => self.create_token(TokenKind::Slash),
+                    false => self.create_token_str(TokenKind::Slash, "/"),
                 },
                 Some(' ') | Some('\r') | Some('\t') => continue,
                 Some('\n') => {
@@ -206,7 +216,7 @@ impl<'a> Scanner<'a> {
                         self.line,
                     )))
                 }
-                None => self.create_token(TokenKind::Eof),
+                None => self.create_token_str(TokenKind::Eof, "eof"),
             };
 
             return Some(Ok(token));

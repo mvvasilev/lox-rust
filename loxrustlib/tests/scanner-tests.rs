@@ -104,6 +104,6 @@ fn token_of(kind: TokenKind) -> Token {
     token_of_at(kind, 1)
 }
 
-fn token_of_at(kind: TokenKind, line: usize) -> Token {
-    Token { kind, line }
+fn token_of_at(kind: TokenKind, lexeme: &str, line: usize) -> Token {
+    Token { kind, lexeme: lexeme.to_string(), line }
 }

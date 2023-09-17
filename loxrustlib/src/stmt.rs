@@ -1,4 +1,4 @@
-use crate::expr::Expression;
+use crate::{expr::Expression, token::Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -9,7 +9,7 @@ pub enum Statement {
         printable: Box<Expression>,
     },
     VariableDeclaration {
-        identifier: String,
+        identifier: Token,
         initializer: Option<Box<Expression>>,
     },
 }

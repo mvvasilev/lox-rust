@@ -3,18 +3,19 @@ use std::fmt::Display;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
+    pub lexeme: String,
     pub line: usize,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, line: usize) -> Self {
-        Self { line, kind }
+    pub fn new(kind: TokenKind, lexeme: String, line: usize) -> Self {
+        Self { line, lexeme, kind }
     }
 }
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.kind)
+        write!(f, "{}", self.kind)
     }
 }
 
@@ -71,6 +72,12 @@ pub enum TokenKind {
 
 impl Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            TokenKind::Identifier(i) => write!(f, "{}", i),
+            TokenKind::String(s) => write!(f, "{}", s),
+            TokenKind::Number(n) => write!(f, "{}", n),
+            TokenKind::Boolean(b) => write!(f, "{}", b),
+            _ => write!(f, "{:?}", self)
+        }
     }
 }

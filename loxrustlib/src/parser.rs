@@ -121,7 +121,7 @@ impl<'a> Parser<'a> {
     }
 
     fn variable_declaration_statement(&mut self) -> Result<Statement, LoxError> {
-        let Some(Token { kind: TokenKind::Identifier(identifier), .. }) = self.match_next(&[TokenKind::Identifier(String::default())]) else { 
+        let Some(identifier) = self.match_next(&[TokenKind::Identifier(String::default())]) else { 
             return Err(LoxError::with_message("Expected variable identifier.")); 
         };
 
@@ -174,7 +174,25 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Result<Box<Expression>, LoxError> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Box<Expression>, LoxError> {
+        let expr = self.equality()?;
+
+        let Some(Ok(previous)) = self.scanner.peek().cloned() else { return Err(LoxError::with_message("Invalid assignment expression")); };
+
+        if let Some(_) = self.match_next(&[TokenKind::Equal]) {
+            let value = self.assignment()?;
+
+            if let Expression::Variable(v) = *expr {
+                return Ok(Box::new(Expression::Assignment { identifier: v, expression: value }));
+            }
+            
+            return Err(LoxError::with_line("Invalid assignment target", previous.line));
+        }
+
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Box<Expression>, LoxError> {
@@ -274,6 +292,7 @@ impl<'a> Parser<'a> {
             Some(Token {
                 kind: TokenKind::LeftParen,
                 line,
+                ..
             }) => {
                 let expr = self.expression()?;
                 let Some(Ok(next_token)) = self.scanner.next() else { return Err(LoxError::with_line("Expected closing parenthesis ')'.", line)) };
@@ -316,7 +335,7 @@ impl<'a> Parser<'a> {
             Some(Token { kind: TokenKind::String(s), .. }) => Ok(Box::new(Expression::LiteralString(s))),
             Some(Token { kind: TokenKind::Boolean(b), .. }) => Ok(Box::new(Expression::LiteralBoolean(b))),
             Some(Token { kind: TokenKind::Nil, .. }) => Ok(Box::new(Expression::Nil)),
-            Some(Token { kind: TokenKind::Identifier(s), .. }) => Ok(Box::new(Expression::Variable(s))),
+            Some(t) if matches!(t.kind, TokenKind::Identifier(_))=> Ok(Box::new(Expression::Variable(t))),
             Some(_) => Err(LoxError::with_line("Unsupported expression.", 0)),
             None => Err(LoxError::with_line("Expected expression.", 0)),
         }

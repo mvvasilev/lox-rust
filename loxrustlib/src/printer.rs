@@ -13,6 +13,11 @@ impl PrettyPrinter {
         let mut buffer = String::new();
 
         match *expr {
+            Expression::Assignment { identifier, expression } => buffer.push_str(&format!(
+                "(var {} = {})",
+                identifier,
+                self.pretty_print(expression)
+            )),
             Expression::Binary {
                 left,
                 operator,
@@ -41,7 +46,7 @@ impl PrettyPrinter {
             }
             Expression::LiteralNumber(n) => buffer.push_str(&format!("{}", n)),
             Expression::LiteralBoolean(b) => buffer.push_str(&format!("{}", b)),
-            Expression::LiteralString(s) => buffer.push_str(&s),
+            Expression::LiteralString(s) => buffer.push_str(&format!("{}", s)),
             Expression::Nil => buffer.push_str("nil"),
             Expression::Variable(s) => buffer.push_str(&format!("var {}", s)),
         }
