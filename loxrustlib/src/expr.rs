@@ -20,6 +20,12 @@ pub enum UnaryOperator {
     Not,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogicalOperator {
+    And,
+    Or
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Assignment {
@@ -36,10 +42,15 @@ pub enum Expression {
         right: Box<Expression>,
     },
     Comma {
-        expressions: Vec<Box<Expression>>,
+        expressions: Vec<Expression>,
     },
     Grouping {
         expression: Box<Expression>,
+    },
+    Logical {
+        left: Box<Expression>,
+        operator: LogicalOperator,
+        right: Box<Expression>
     },
     LiteralNumber(f64),
     LiteralBoolean(bool),

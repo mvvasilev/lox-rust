@@ -4,7 +4,7 @@ use crate::{expr::Expression, err::LoxError, token::Token};
 
 pub struct Environment {
     pub parent: Option<Box<Environment>>,
-    values: HashMap<Identifier, Option<Box<Expression>>>
+    values: HashMap<Identifier, Option<Expression>>
 }
 
 impl Environment {
@@ -12,7 +12,7 @@ impl Environment {
         Self { parent, values: HashMap::new() }
     }
 
-    pub fn assign(&mut self, name: Identifier, value: Box<Expression>) -> Result<(), LoxError> {
+    pub fn assign(&mut self, name: Identifier, value: Expression) -> Result<(), LoxError> {
         if self.values.contains_key(&name) {
             self.values.insert(name.clone(), Some(value));
 
@@ -25,11 +25,11 @@ impl Environment {
         )
     }
 
-    pub fn define(&mut self, name: Identifier, value: Option<Box<Expression>>) {
+    pub fn define(&mut self, name: Identifier, value: Option<Expression>) {
         self.values.insert(name, value);
     }
 
-    pub fn get(&mut self, name: Identifier) -> Option<Box<Expression>> {
+    pub fn get(&mut self, name: Identifier) -> Option<Expression> {
         match self.values.get(&name) {
             Some(v) => v.clone(),
             None => self.parent.as_mut().map(|e| e.get(name))?

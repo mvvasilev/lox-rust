@@ -2,7 +2,7 @@ use std::{iter::Peekable, mem};
 
 use crate::{
     err::LoxError,
-    expr::{BinaryOperator, Expression, UnaryOperator},
+    expr::{BinaryOperator, Expression, UnaryOperator, LogicalOperator},
     scan::Scanner,
     stmt::Statement,
     token::{Token, TokenKind},
@@ -34,7 +34,7 @@ impl<'a> Parser<'a> {
 
         if Parser::match_peeked_token(&next_token.kind, args) {
             self.scanner.next(); // only consume the token if it matched
-            
+
             return Some(next_token.clone()); // Yes, the token is one of the ones in the arguments - return it
         }
 
@@ -85,6 +85,17 @@ impl<'a> Parser<'a> {
                 format!("Expected binary operator, got {}", token.kind),
                 token.line,
             )),
+        }
+    }
+
+    fn parse_token_as_logical_op(&self, token: &Token) -> Result<LogicalOperator, LoxError> {
+        match token.kind {
+            TokenKind::And => Ok(LogicalOperator::And),
+            TokenKind::Or => Ok(LogicalOperator::Or),
+            _ => Err(LoxError::with_message_line(
+                format!("Expected logical operator, got {}", token.kind), 
+                token.line)
+            )
         }
     }
 
@@ -153,6 +164,20 @@ impl<'a> Parser<'a> {
             return self.block_statement();
         }
 
+        if let Some(Token {
+            kind: TokenKind::If,
+            ..
+        }) = self.match_next(&[TokenKind::If]) {
+            return self.if_statement();
+        }
+
+        if let Some(Token {
+            kind: TokenKind::While,
+            ..
+        }) = self.match_next(&[TokenKind::While]) {
+            return self.while_statement();
+        }
+
         self.expression_statement()
     }
 
@@ -165,6 +190,38 @@ impl<'a> Parser<'a> {
         )?;
 
         Ok(Statement::PrintStatement { printable: value })
+    }
+
+    fn if_statement(&mut self) -> Result<Statement, LoxError> {
+        self.consume_next(&TokenKind::LeftParen, LoxError::with_message("Expected condition of 'if' to be wrapped in parenthesis '()'."))?;
+
+        let condition = self.expression()?;
+
+        self.consume_next(&TokenKind::RightParen, LoxError::with_message("Expected condition of 'if' to be wrapped in parenthesis '()'."))?;
+
+        let true_statement = self.statement()?;
+
+        let mut else_statement = None;
+        if let Some(Token {
+            kind: TokenKind::Else,
+            ..
+        }) = self.match_next(&[TokenKind::Else]) {
+            else_statement = Some(Box::new(self.statement()?));
+        }
+
+        Ok(Statement::IfStatement { condition, true_branch: Box::new(true_statement), else_branch: else_statement })
+    }
+
+    fn while_statement(&mut self) -> Result<Statement, LoxError> {
+        self.consume_next(&TokenKind::LeftParen, LoxError::with_message("Expected condition of 'while' to be wrapped in parenthesis '()'."))?;
+
+        let condition = self.expression()?;
+
+        self.consume_next(&TokenKind::RightParen, LoxError::with_message("Expected condition of 'while' to be wrapped in parenthesis '()'."))?;
+
+        let body = self.statement()?;
+
+        Ok(Statement::WhileStatement { condition, body: Box::new(body) })
     }
 
     fn block_statement(&mut self) -> Result<Statement, LoxError> {
@@ -199,20 +256,20 @@ impl<'a> Parser<'a> {
         Ok(Statement::ExpressionStatement { expression: value })
     }
 
-    fn expression(&mut self) -> Result<Box<Expression>, LoxError> {
+    fn expression(&mut self) -> Result<Expression, LoxError> {
         self.assignment()
     }
 
-    fn assignment(&mut self) -> Result<Box<Expression>, LoxError> {
-        let expr = self.equality()?;
+    fn assignment(&mut self) -> Result<Expression, LoxError> {
+        let expr = self.or()?;
 
         let Some(Ok(previous)) = self.scanner.peek().cloned() else { return Err(LoxError::with_message("Invalid assignment expression")); };
 
         if let Some(_) = self.match_next(&[TokenKind::Equal]) {
             let value = self.assignment()?;
 
-            if let Expression::Variable(v) = *expr {
-                return Ok(Box::new(Expression::Assignment { identifier: v, expression: value }));
+            if let Expression::Variable(v) = expr {
+                return Ok(Expression::Assignment { identifier: v, expression: Box::new(value) });
             }
             
             return Err(LoxError::with_line("Invalid assignment target", previous.line));
@@ -221,7 +278,45 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn equality(&mut self) -> Result<Box<Expression>, LoxError> {
+    fn or(&mut self) -> Result<Expression, LoxError> {
+        let mut expr = self.and()?;
+
+        loop {
+            let Some(op_token) = self.match_next(&[TokenKind::Or]) else { break; };
+            let operator = self.parse_token_as_logical_op(&op_token)?;
+
+            expr = self.comparison().map(|right| {
+                Expression::Logical { 
+                    left: Box::new(expr), 
+                    operator, 
+                    right: Box::new(right) 
+                }
+            })?;
+        }
+
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expression, LoxError> {
+        let mut expr = self.equality()?;
+
+        loop {
+            let Some(op_token) = self.match_next(&[TokenKind::And]) else { break; };
+            let operator = self.parse_token_as_logical_op(&op_token)?;
+
+            expr = self.comparison().map(|right| {
+                Expression::Logical { 
+                    left: Box::new(expr), 
+                    operator, 
+                    right: Box::new(right) 
+                }
+            })?;
+        }
+
+        Ok(expr)
+    }
+
+    fn equality(&mut self) -> Result<Expression, LoxError> {
         let mut expr = self.comparison()?;
 
         loop {
@@ -229,37 +324,37 @@ impl<'a> Parser<'a> {
             let operator = self.parse_token_as_binary_op(&op_token)?;
 
             expr = self.comparison().map(|right| {
-                Box::new(Expression::Binary {
-                    left: expr,
+                Expression::Binary {
+                    left: Box::new(expr),
                     operator,
-                    right,
-                })
+                    right: Box::new(right),
+                }
             })?;
         }
 
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> Result<Box<Expression>, LoxError> {
-        let mut expr: Box<Expression> = self.term()?;
+    fn comparison(&mut self) -> Result<Expression, LoxError> {
+        let mut expr = self.term()?;
 
         loop {
             let Some(op_token) = self.match_next(&[TokenKind::Greater, TokenKind::GreaterEqual, TokenKind::Less, TokenKind::LessEqual]) else { break; };
             let operator = self.parse_token_as_binary_op(&op_token)?;
 
             expr = self.term().map(|right| {
-                Box::new(Expression::Binary {
-                    left: expr,
+                Expression::Binary {
+                    left: Box::new(expr),
                     operator,
-                    right,
-                })
+                    right: Box::new(right),
+                }
             })?;
         }
 
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Box<Expression>, LoxError> {
+    fn term(&mut self) -> Result<Expression, LoxError> {
         let mut expr = self.factor()?;
 
         loop {
@@ -267,18 +362,18 @@ impl<'a> Parser<'a> {
             let operator = self.parse_token_as_binary_op(&op_token)?;
 
             expr = self.factor().map(|right| {
-                Box::new(Expression::Binary {
-                    left: expr,
+                Expression::Binary {
+                    left: Box::new(expr),
                     operator,
-                    right,
-                })
+                    right: Box::new(right),
+                }
             })?;
         }
 
         Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<Box<Expression>, LoxError> {
+    fn factor(&mut self) -> Result<Expression, LoxError> {
         let mut expr = self.unary()?;
 
         loop {
@@ -286,27 +381,27 @@ impl<'a> Parser<'a> {
             let operator = self.parse_token_as_binary_op(&op_token)?;
 
             expr = self.unary().map(|right| {
-                Box::new(Expression::Binary {
-                    left: expr,
+                Expression::Binary {
+                    left: Box::new(expr),
                     operator,
-                    right,
-                })
+                    right: Box::new(right),
+                }
             })?;
         }
 
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Box<Expression>, LoxError> {
+    fn unary(&mut self) -> Result<Expression, LoxError> {
         let Some(op_token) = self.match_next(&[TokenKind::Bang, TokenKind::Minus]) else { return self.primary(); };
         let operator = self.parse_token_as_unary_op(&op_token)?;
 
         let right = self.unary()?;
 
-        return Ok(Box::new(Expression::Unary { operator, right }));
+        return Ok(Expression::Unary { operator, right: Box::new(right) });
     }
 
-    fn primary(&mut self) -> Result<Box<Expression>, LoxError> {
+    fn primary(&mut self) -> Result<Expression, LoxError> {
         match self.match_next(&[
             TokenKind::Nil,
             TokenKind::Boolean(bool::default()),
@@ -325,10 +420,10 @@ impl<'a> Parser<'a> {
 
                 match next_token.kind {
                     TokenKind::RightParen => {
-                        Ok(Box::new(Expression::Grouping { expression: expr }))
+                        Ok(Expression::Grouping { expression: Box::new(expr) })
                     }
                     TokenKind::Comma => {
-                        let mut expressions: Vec<Box<Expression>> = Vec::new();
+                        let mut expressions: Vec<Expression> = Vec::new();
 
                         expressions.push(expr);
 
@@ -341,7 +436,7 @@ impl<'a> Parser<'a> {
 
                             return match next_token.kind {
                                 TokenKind::RightParen => {
-                                    Ok(Box::new(Expression::Comma { expressions }))
+                                    Ok(Expression::Comma { expressions })
                                 }
                                 TokenKind::Comma => continue,
                                 _ => Err(LoxError::with_line(
@@ -357,11 +452,11 @@ impl<'a> Parser<'a> {
                     )),
                 }
             }
-            Some(Token { kind: TokenKind::Number(n), .. }) => Ok(Box::new(Expression::LiteralNumber(n))),
-            Some(Token { kind: TokenKind::String(s), .. }) => Ok(Box::new(Expression::LiteralString(s))),
-            Some(Token { kind: TokenKind::Boolean(b), .. }) => Ok(Box::new(Expression::LiteralBoolean(b))),
-            Some(Token { kind: TokenKind::Nil, .. }) => Ok(Box::new(Expression::Nil)),
-            Some(t) if matches!(t.kind, TokenKind::Identifier(_))=> Ok(Box::new(Expression::Variable(t))),
+            Some(Token { kind: TokenKind::Number(n), .. }) => Ok(Expression::LiteralNumber(n)),
+            Some(Token { kind: TokenKind::String(s), .. }) => Ok(Expression::LiteralString(s)),
+            Some(Token { kind: TokenKind::Boolean(b), .. }) => Ok(Expression::LiteralBoolean(b)),
+            Some(Token { kind: TokenKind::Nil, .. }) => Ok(Expression::Nil),
+            Some(t) if matches!(t.kind, TokenKind::Identifier(_))=> Ok(Expression::Variable(t)),
             Some(_) => Err(LoxError::with_line("Unsupported expression.", 0)),
             None => Err(LoxError::with_line(&format!("Expected expression. Got {:?}", self.scanner.peek()), 0)),
         }

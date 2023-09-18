@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::expr::{BinaryOperator, Expression, UnaryOperator};
+use crate::expr::{BinaryOperator, Expression, UnaryOperator, LogicalOperator};
 
 pub struct PrettyPrinter {}
 
@@ -9,14 +9,14 @@ impl PrettyPrinter {
         PrettyPrinter {}
     }
 
-    pub fn pretty_print(&self, expr: Box<Expression>) -> String {
+    pub fn pretty_print(&self, expr: Expression) -> String {
         let mut buffer = String::new();
 
-        match *expr {
+        match expr {
             Expression::Assignment { identifier, expression } => buffer.push_str(&format!(
                 "(var {} = {})",
                 identifier,
-                self.pretty_print(expression)
+                self.pretty_print(*expression)
             )),
             Expression::Binary {
                 left,
@@ -24,12 +24,12 @@ impl PrettyPrinter {
                 right,
             } => buffer.push_str(&format!(
                 "({} {} {})",
-                self.pretty_print(left),
+                self.pretty_print(*left),
                 operator,
-                self.pretty_print(right)
+                self.pretty_print(*right)
             )),
             Expression::Unary { operator, right } => {
-                buffer.push_str(&format!("({} {})", operator, self.pretty_print(right)))
+                buffer.push_str(&format!("({} {})", operator, self.pretty_print(*right)))
             }
             Expression::Comma { expressions } => {
                 let e = expressions
@@ -42,7 +42,10 @@ impl PrettyPrinter {
                 buffer.push_str(&format!("({})", e));
             }
             Expression::Grouping { expression } => {
-                buffer.push_str(&format!("({})", self.pretty_print(expression)));
+                buffer.push_str(&format!("({})", self.pretty_print(*expression)));
+            }
+            Expression::Logical { left, operator, right } => {
+                buffer.push_str(&format!("({} {} {})", left, operator, right));
             }
             Expression::LiteralNumber(n) => buffer.push_str(&format!("{}", n)),
             Expression::LiteralBoolean(b) => buffer.push_str(&format!("{}", b)),
@@ -90,6 +93,15 @@ impl Display for UnaryOperator {
         match self {
             UnaryOperator::Minus => write!(f, "-"),
             UnaryOperator::Not => write!(f, "!"),
+        }
+    }
+}
+
+impl Display for LogicalOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogicalOperator::And => write!(f, "and"),
+            LogicalOperator::Or => write!(f, "or"),
         }
     }
 }
