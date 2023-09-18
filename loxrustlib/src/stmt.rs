@@ -13,15 +13,15 @@ pub enum Statement {
         initializer: Option<Expression>,
     },
     BlockStatement {
-        statements: Vec<Statement>
+        statements: Vec<Statement>,
     },
     IfStatement {
         condition: Expression,
         true_branch: Box<Statement>,
-        else_branch: Option<Box<Statement>>
+        else_branch: Option<Box<Statement>>,
     },
     WhileStatement {
         condition: Expression,
-        body: Box<Statement>
+        body: Box<Statement>,
     }
 }

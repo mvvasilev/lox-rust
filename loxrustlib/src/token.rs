@@ -77,7 +77,7 @@ impl Display for TokenKind {
             TokenKind::String(s) => write!(f, "{}", s),
             TokenKind::Number(n) => write!(f, "{}", n),
             TokenKind::Boolean(b) => write!(f, "{}", b),
-            _ => write!(f, "{:?}", self)
+            _ => write!(f, "{:?}", self),
         }
     }
 }

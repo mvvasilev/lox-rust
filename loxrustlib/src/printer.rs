@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::expr::{BinaryOperator, Expression, UnaryOperator, LogicalOperator};
+use crate::expr::{BinaryOperator, Expression, LogicalOperator, UnaryOperator};
 
 pub struct PrettyPrinter {}
 
@@ -13,7 +13,10 @@ impl PrettyPrinter {
         let mut buffer = String::new();
 
         match expr {
-            Expression::Assignment { identifier, expression } => buffer.push_str(&format!(
+            Expression::Assignment {
+                identifier,
+                expression,
+            } => buffer.push_str(&format!(
                 "(var {} = {})",
                 identifier,
                 self.pretty_print(*expression)
@@ -44,7 +47,11 @@ impl PrettyPrinter {
             Expression::Grouping { expression } => {
                 buffer.push_str(&format!("({})", self.pretty_print(*expression)));
             }
-            Expression::Logical { left, operator, right } => {
+            Expression::Logical {
+                left,
+                operator,
+                right,
+            } => {
                 buffer.push_str(&format!("({} {} {})", left, operator, right));
             }
             Expression::LiteralNumber(n) => buffer.push_str(&format!("{}", n)),

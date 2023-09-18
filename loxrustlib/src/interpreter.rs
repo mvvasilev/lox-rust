@@ -1,24 +1,36 @@
 use crate::{
+    environment::Environment,
     err::LoxError,
-    expr::{BinaryOperator, Expression, UnaryOperator, LogicalOperator},
-    stmt::Statement, environment::Environment, token::Token,
+    expr::{BinaryOperator, Expression, LogicalOperator, UnaryOperator},
+    stmt::Statement,
+    token::Token,
 };
 
 pub struct Interpreter {
-    environment: Environment
+    environment: Environment,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self { environment: Environment::new(None) }
+        Self {
+            environment: Environment::new(None),
+        }
     }
 
     pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<(), LoxError> {
         for s in statements {
-            self.execute(&s)?
+            if let Err(e) = self.execute(&s) {
+                self.dump_environment();
+
+                return Err(e);
+            }
         }
 
         Ok(())
+    }
+
+    fn dump_environment(&mut self) {
+        self.environment.print_vars(0);
     }
 
     fn execute(&mut self, statement: &Statement) -> Result<(), LoxError> {
@@ -27,27 +39,34 @@ impl Interpreter {
                 self.evaluate(expression)?;
 
                 Ok(())
-            },
+            }
             Statement::PrintStatement { printable } => {
                 self.print(printable)?;
 
                 Ok(())
-            },
-            Statement::VariableDeclaration { identifier, initializer } => {
+            }
+            Statement::VariableDeclaration {
+                identifier,
+                initializer,
+            } => {
                 self.declare_variable(identifier.clone(), initializer)?;
 
                 Ok(())
-            },
+            }
             Statement::BlockStatement { statements } => {
                 self.execute_block_statement(statements)?;
 
                 Ok(())
             }
-            Statement::IfStatement { condition, true_branch, else_branch } => {
+            Statement::IfStatement {
+                condition,
+                true_branch,
+                else_branch,
+            } => {
                 self.execute_if(condition, &*true_branch, else_branch)?;
 
                 Ok(())
-            },
+            }
             Statement::WhileStatement { condition, body } => {
                 self.execute_while(condition, &*body)?;
 
@@ -64,7 +83,12 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_if(&mut self, condition: &Expression, true_branch: &Statement, else_branch: &Option<Box<Statement>>) -> Result<(), LoxError> {
+    fn execute_if(
+        &mut self,
+        condition: &Expression,
+        true_branch: &Statement,
+        else_branch: &Option<Box<Statement>>,
+    ) -> Result<(), LoxError> {
         let condition_result = self.evaluate(condition)?;
 
         if condition_result != Expression::LiteralBoolean(true) {
@@ -94,7 +118,10 @@ impl Interpreter {
 
     fn evaluate(&mut self, expression: &Expression) -> Result<Expression, LoxError> {
         match expression {
-            Expression::Assignment { identifier, expression } => self.eval_assignment_expression(identifier.clone(), &*expression),
+            Expression::Assignment {
+                identifier,
+                expression,
+            } => self.eval_assignment_expression(identifier.clone(), &*expression),
             Expression::Binary {
                 left,
                 operator,
@@ -103,19 +130,26 @@ impl Interpreter {
             Expression::Unary { operator, right } => self.eval_unary_expression(*operator, &*right),
             Expression::Comma { expressions } => self.eval_comma_expression(&expressions),
             Expression::Grouping { expression } => self.evaluate(&*expression),
-            Expression::Logical { left, operator, right } => self.eval_logical_expression(&*left, *operator, &*right),
+            Expression::Logical {
+                left,
+                operator,
+                right,
+            } => self.eval_logical_expression(&*left, *operator, &*right),
             Expression::Variable(t) => {
-                let Some(v) = self.environment.get(t.clone().into()) else { return Err(LoxError::with_message(&format!("Use of undefined variable '{}'", t))); };
+                let Some(v) = self.environment.get(&t.into()) else { return Err(LoxError::with_message(&format!("Use of undefined variable '{}'", t))); };
 
-                Ok(v)
-            },
-            _ => Ok(expression.clone()),
+                Ok(v.clone())
+            }
+            Expression::LiteralNumber(n) => Ok(Expression::LiteralNumber(*n)), // Avoid clone/copy?
+            Expression::LiteralBoolean(b) => Ok(Expression::LiteralBoolean(*b)), // Avoid clone/copy?
+            Expression::LiteralString(s) => Ok(Expression::LiteralString(s.clone())), // Avoid clone/copy?
+            Expression::Nil => Ok(Expression::Nil), // Avoid clone/copy?
         }
     }
 
     fn execute_block_statement(&mut self, statements: &Vec<Statement>) -> Result<(), LoxError> {
         let parent_env = std::mem::take(&mut self.environment);
-        
+
         self.environment = Environment::new(Some(Box::new(parent_env)));
 
         for stmt in statements {
@@ -128,15 +162,26 @@ impl Interpreter {
         Ok(())
     }
 
-    fn declare_variable(&mut self, identifier: Token, initializer: &Option<Expression>) -> Result<(), LoxError> {
-        let init = initializer.as_ref().map(|init| self.evaluate(init)).transpose()?;
+    fn declare_variable(
+        &mut self,
+        identifier: Token,
+        initializer: &Option<Expression>,
+    ) -> Result<(), LoxError> {
+        let init = initializer
+            .as_ref()
+            .map(|init| self.evaluate(init))
+            .transpose()?;
 
         self.environment.define(identifier.into(), init);
 
         Ok(())
     }
 
-    fn eval_assignment_expression(&mut self, identifier: Token, expression: &Expression) -> Result<Expression, LoxError> {
+    fn eval_assignment_expression(
+        &mut self,
+        identifier: Token,
+        expression: &Expression,
+    ) -> Result<Expression, LoxError> {
         let value = self.evaluate(expression)?;
 
         self.environment.assign(identifier.into(), value.clone())?;
@@ -178,7 +223,12 @@ impl Interpreter {
         }
     }
 
-    fn eval_logical_expression(&mut self, left: &Expression, operator: LogicalOperator, right: &Expression) -> Result<Expression, LoxError> {
+    fn eval_logical_expression(
+        &mut self,
+        left: &Expression,
+        operator: LogicalOperator,
+        right: &Expression,
+    ) -> Result<Expression, LoxError> {
         let left_result = self.evaluate(left)?;
 
         if operator == LogicalOperator::Or && self.is_truthy(&left_result) {
@@ -208,12 +258,22 @@ impl Interpreter {
                 "Subtraction requires both operands to be numbers",
                 |n1, n2| Ok(n1 - n2),
             ),
-            BinaryOperator::Plus => self.numeric_operation(
-                l,
-                r,
-                "Addition requires both operands to be numbers",
-                |n1, n2| Ok(n1 + n2),
-            ),
+            BinaryOperator::Plus => {
+                if let Expression::LiteralString(_) = l {
+                    return Ok(Expression::LiteralString(format!("{}{}", l, r)));
+                }
+
+                if let Expression::LiteralString(_) = r {
+                    return Ok(Expression::LiteralString(format!("{}{}", l, r)));
+                }
+
+                self.numeric_operation(
+                    l,
+                    r,
+                    "Addition requires both operands to be numbers",
+                    |n1, n2| Ok(n1 + n2),
+                )
+            }
             BinaryOperator::NotEqual => self.comparison(
                 l,
                 r,
@@ -282,9 +342,7 @@ impl Interpreter {
         let Expression::LiteralNumber(left_num) = left else { return Err(LoxError::with_message(invalid_operands_message)); };
         let Expression::LiteralNumber(right_num) = right else { return Err(LoxError::with_message(invalid_operands_message)); };
 
-        Ok(Expression::LiteralNumber(op(
-            *left_num, *right_num,
-        )?))
+        Ok(Expression::LiteralNumber(op(*left_num, *right_num)?))
     }
 
     fn comparison<N, S, B>(
@@ -317,10 +375,7 @@ impl Interpreter {
 
                 let Expression::LiteralString(right_string) = right else { return Err(LoxError::with_message("Cannot compare unlike types")); };
 
-                Ok(Expression::LiteralBoolean(s(
-                    left_string,
-                    right_string,
-                )))
+                Ok(Expression::LiteralBoolean(s(left_string, right_string)))
             }
             Expression::LiteralBoolean(left_bool) => {
                 if right == &Expression::Nil {
@@ -329,9 +384,7 @@ impl Interpreter {
 
                 let Expression::LiteralBoolean(right_bool) = right else { return Err(LoxError::with_message("Cannot compare unlike types")); };
 
-                Ok(Expression::LiteralBoolean(b(
-                    *left_bool, *right_bool,
-                )))
+                Ok(Expression::LiteralBoolean(b(*left_bool, *right_bool)))
             }
             Expression::Nil => {
                 if right == &Expression::Nil {
@@ -339,13 +392,13 @@ impl Interpreter {
                 } else {
                     Ok(Expression::LiteralBoolean(false))
                 }
-            },
+            }
             _ => Err(LoxError::with_message("Invalid expression for comparison")),
         }
     }
 
     fn is_truthy(&self, expr: &Expression) -> bool {
-        if expr == &Expression::Nil { 
+        if expr == &Expression::Nil {
             return false;
         }
 

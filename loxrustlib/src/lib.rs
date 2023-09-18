@@ -1,3 +1,4 @@
+pub mod environment;
 pub mod err;
 pub mod expr;
 pub mod interpreter;
@@ -6,4 +7,3 @@ pub mod printer;
 pub mod scan;
 pub mod stmt;
 pub mod token;
-pub mod environment;

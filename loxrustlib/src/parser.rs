@@ -2,7 +2,7 @@ use std::{iter::Peekable, mem};
 
 use crate::{
     err::LoxError,
-    expr::{BinaryOperator, Expression, UnaryOperator, LogicalOperator},
+    expr::{BinaryOperator, Expression, LogicalOperator, UnaryOperator},
     scan::Scanner,
     stmt::Statement,
     token::{Token, TokenKind},
@@ -29,7 +29,7 @@ impl<'a> Parser<'a> {
         return false;
     }
 
-    fn match_next(&mut self, args: &[TokenKind]) -> Option<Token> {
+    fn match_next_token(&mut self, args: &[TokenKind]) -> Option<Token> {
         let Some(Ok(next_token)) = self.scanner.peek().cloned() else { return None; };
 
         if Parser::match_peeked_token(&next_token.kind, args) {
@@ -41,21 +41,29 @@ impl<'a> Parser<'a> {
         None // No, the token isn't any of the ones provided - return none
     }
 
+    fn match_next_kind(&mut self, args: &[TokenKind]) -> Option<TokenKind> {
+        self.match_next_token(args).map(|t| t.kind)
+    }
+
     fn consume_next(
         &mut self,
         expected_kind: &TokenKind,
-        err_if_not_kind: LoxError,
     ) -> Result<Token, LoxError> {
-        if let Some(Ok(Token { kind, .. })) = self.scanner.peek() {
-            if kind == expected_kind {
-                let Some(Ok(token)) = self.scanner.next() else { return Err(LoxError::with_message("Token is of unexpected kind")); };
+        let Some(Ok(Token { kind, line, .. })) = self.scanner.peek() else { return Err(LoxError::with_message("Unexpected end of scan")) };
 
-                // if-let with && is not supported. Bummer.
-                return Ok(token);
-            }
+        if kind == expected_kind {
+            let Some(Ok(token)) = self.scanner.next() else { return Err(LoxError::with_message("Token is of unexpected kind")); };
+
+            // if-let with && is not supported. Bummer.
+            return Ok(token);
         }
 
-        Err(err_if_not_kind)
+        Err(LoxError::with_message_line(format!("Expected token of kind '{}', instead got {}", expected_kind, kind), *line))
+    }
+
+    fn check_next(&mut self, expected_kind: &TokenKind) -> bool {
+        let Some(Ok(Token { kind, .. })) = self.scanner.peek() else { return false; };
+        return expected_kind == kind;
     }
 
     fn parse_token_as_unary_op(&self, token: &Token) -> Result<UnaryOperator, LoxError> {
@@ -93,9 +101,9 @@ impl<'a> Parser<'a> {
             TokenKind::And => Ok(LogicalOperator::And),
             TokenKind::Or => Ok(LogicalOperator::Or),
             _ => Err(LoxError::with_message_line(
-                format!("Expected logical operator, got {}", token.kind), 
-                token.line)
-            )
+                format!("Expected logical operator, got {}", token.kind),
+                token.line,
+            )),
         }
     }
 
@@ -118,10 +126,7 @@ impl<'a> Parser<'a> {
     }
 
     fn declaration(&mut self) -> Result<Statement, LoxError> {
-        if let Some(Token {
-            kind: TokenKind::Var,
-            ..
-        }) = self.match_next(&[TokenKind::Var])
+        if let Some(TokenKind::Var) = self.match_next_kind(&[TokenKind::Var])
         {
             return self.variable_declaration_statement();
         }
@@ -130,17 +135,17 @@ impl<'a> Parser<'a> {
     }
 
     fn variable_declaration_statement(&mut self) -> Result<Statement, LoxError> {
-        let Some(identifier) = self.match_next(&[TokenKind::Identifier(String::default())]) else { 
+        let Some(identifier) = self.match_next_token(&[TokenKind::Identifier(String::default())]) else { 
             return Err(LoxError::with_message("Expected variable identifier.")); 
         };
 
         let mut initializer = None;
 
-        if self.match_next(&[TokenKind::Equal]).is_some() {
+        if self.match_next_token(&[TokenKind::Equal]).is_some() {
             initializer = Some(self.expression()?);
         }
 
-        self.consume_next(&TokenKind::Semicolon, LoxError::with_message("Expected semicolon ';' to terminate statement."))?;
+        self.consume_next(&TokenKind::Semicolon)?;
 
         Ok(Statement::VariableDeclaration {
             identifier,
@@ -149,33 +154,28 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Result<Statement, LoxError> {
-        if let Some(Token {
-            kind: TokenKind::Print,
-            ..
-        }) = self.match_next(&[TokenKind::Print])
+        if let Some(TokenKind::Print) = self.match_next_kind(&[TokenKind::Print])
         {
             return self.print_statement();
         }
 
-        if let Some(Token {
-            kind: TokenKind::LeftBrace,
-            ..
-        }) = self.match_next(&[TokenKind::LeftBrace]) {
+        if let Some(TokenKind::LeftBrace) = self.match_next_kind(&[TokenKind::LeftBrace])
+        {
             return self.block_statement();
         }
 
-        if let Some(Token {
-            kind: TokenKind::If,
-            ..
-        }) = self.match_next(&[TokenKind::If]) {
+        if let Some(TokenKind::If) = self.match_next_kind(&[TokenKind::If])
+        {
             return self.if_statement();
         }
 
-        if let Some(Token {
-            kind: TokenKind::While,
-            ..
-        }) = self.match_next(&[TokenKind::While]) {
+        if let Some(TokenKind::While) = self.match_next_kind(&[TokenKind::While])
+        {
             return self.while_statement();
+        }
+
+        if let Some(TokenKind::For) = self.match_next_kind(&[TokenKind::For]) {
+            return self.for_statement();
         }
 
         self.expression_statement()
@@ -184,44 +184,103 @@ impl<'a> Parser<'a> {
     fn print_statement(&mut self) -> Result<Statement, LoxError> {
         let value = self.expression()?;
 
-        self.consume_next(
-            &TokenKind::Semicolon,
-            LoxError::with_message("Expected semicolon ';' to terminate statement."),
-        )?;
+        self.consume_next(&TokenKind::Semicolon)?;
 
         Ok(Statement::PrintStatement { printable: value })
     }
 
     fn if_statement(&mut self) -> Result<Statement, LoxError> {
-        self.consume_next(&TokenKind::LeftParen, LoxError::with_message("Expected condition of 'if' to be wrapped in parenthesis '()'."))?;
+        self.consume_next(&TokenKind::LeftParen)?;
 
         let condition = self.expression()?;
 
-        self.consume_next(&TokenKind::RightParen, LoxError::with_message("Expected condition of 'if' to be wrapped in parenthesis '()'."))?;
+        self.consume_next(&TokenKind::RightParen)?;
 
         let true_statement = self.statement()?;
 
         let mut else_statement = None;
-        if let Some(Token {
-            kind: TokenKind::Else,
-            ..
-        }) = self.match_next(&[TokenKind::Else]) {
+        if let Some(TokenKind::Else) = self.match_next_kind(&[TokenKind::Else])
+        {
             else_statement = Some(Box::new(self.statement()?));
         }
 
-        Ok(Statement::IfStatement { condition, true_branch: Box::new(true_statement), else_branch: else_statement })
+        Ok(Statement::IfStatement {
+            condition,
+            true_branch: Box::new(true_statement),
+            else_branch: else_statement,
+        })
     }
 
     fn while_statement(&mut self) -> Result<Statement, LoxError> {
-        self.consume_next(&TokenKind::LeftParen, LoxError::with_message("Expected condition of 'while' to be wrapped in parenthesis '()'."))?;
+        self.consume_next(&TokenKind::LeftParen)?;
 
         let condition = self.expression()?;
 
-        self.consume_next(&TokenKind::RightParen, LoxError::with_message("Expected condition of 'while' to be wrapped in parenthesis '()'."))?;
+        self.consume_next(&TokenKind::RightParen)?;
 
         let body = self.statement()?;
 
-        Ok(Statement::WhileStatement { condition, body: Box::new(body) })
+        Ok(Statement::WhileStatement {
+            condition,
+            body: Box::new(body),
+        })
+    }
+
+    fn for_statement(&mut self) -> Result<Statement, LoxError> {
+        self.consume_next(&TokenKind::LeftParen)?;
+
+        let initializer;
+
+        if self.check_next(&TokenKind::Semicolon) {
+            self.consume_next(&TokenKind::Semicolon)?;
+            initializer = None;
+        } else {
+            if self.check_next(&TokenKind::Var) {
+                self.consume_next(&TokenKind::Var)?;
+                initializer = Some(self.variable_declaration_statement()?);
+            } else {
+                initializer = Some(self.expression_statement()?);
+            }
+        }
+
+        let mut condition = None;
+
+        if !self.check_next(&TokenKind::Semicolon) {
+            condition = Some(self.expression()?);
+        }
+
+        self.consume_next(&TokenKind::Semicolon)?;
+
+        let mut increment = None;
+
+        if !self.check_next(&TokenKind::RightParen) {
+            increment = Some(self.expression()?);
+        }
+
+        self.consume_next(&TokenKind::RightParen)?;
+
+        let mut body = self.statement()?;
+
+        if let Some(incr) = increment {
+            body = Statement::BlockStatement { statements: vec![
+                body,
+                Statement::ExpressionStatement { expression: incr }
+            ]}
+        }
+
+        body = Statement::WhileStatement { 
+            condition: condition.map_or(Expression::LiteralBoolean(true), |c| c), 
+            body: Box::new(body) 
+        };
+
+        if let Some(init) = initializer {
+            body = Statement::BlockStatement { statements: vec![
+                init,
+                body
+            ]}
+        }
+
+        Ok(body)
     }
 
     fn block_statement(&mut self) -> Result<Statement, LoxError> {
@@ -237,10 +296,7 @@ impl<'a> Parser<'a> {
             statements.push(self.declaration()?);
         }
 
-        self.consume_next(
-            &TokenKind::RightBrace, 
-            LoxError::with_message("Expected closing bracket '}' after block.")
-        )?;
+        self.consume_next(&TokenKind::RightBrace)?;
 
         Ok(Statement::BlockStatement { statements })
     }
@@ -248,10 +304,7 @@ impl<'a> Parser<'a> {
     fn expression_statement(&mut self) -> Result<Statement, LoxError> {
         let value = self.expression()?;
 
-        self.consume_next(
-            &TokenKind::Semicolon,
-            LoxError::with_message("Expected semicolon ';' to terminate statement."),
-        )?;
+        self.consume_next(&TokenKind::Semicolon)?;
 
         Ok(Statement::ExpressionStatement { expression: value })
     }
@@ -265,14 +318,20 @@ impl<'a> Parser<'a> {
 
         let Some(Ok(previous)) = self.scanner.peek().cloned() else { return Err(LoxError::with_message("Invalid assignment expression")); };
 
-        if let Some(_) = self.match_next(&[TokenKind::Equal]) {
+        if let Some(_) = self.match_next_token(&[TokenKind::Equal]) {
             let value = self.assignment()?;
 
             if let Expression::Variable(v) = expr {
-                return Ok(Expression::Assignment { identifier: v, expression: Box::new(value) });
+                return Ok(Expression::Assignment {
+                    identifier: v,
+                    expression: Box::new(value),
+                });
             }
-            
-            return Err(LoxError::with_line("Invalid assignment target", previous.line));
+
+            return Err(LoxError::with_line(
+                "Invalid assignment target",
+                previous.line,
+            ));
         }
 
         Ok(expr)
@@ -282,15 +341,13 @@ impl<'a> Parser<'a> {
         let mut expr = self.and()?;
 
         loop {
-            let Some(op_token) = self.match_next(&[TokenKind::Or]) else { break; };
+            let Some(op_token) = self.match_next_token(&[TokenKind::Or]) else { break; };
             let operator = self.parse_token_as_logical_op(&op_token)?;
 
-            expr = self.comparison().map(|right| {
-                Expression::Logical { 
-                    left: Box::new(expr), 
-                    operator, 
-                    right: Box::new(right) 
-                }
+            expr = self.comparison().map(|right| Expression::Logical {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
             })?;
         }
 
@@ -301,15 +358,13 @@ impl<'a> Parser<'a> {
         let mut expr = self.equality()?;
 
         loop {
-            let Some(op_token) = self.match_next(&[TokenKind::And]) else { break; };
+            let Some(op_token) = self.match_next_token(&[TokenKind::And]) else { break; };
             let operator = self.parse_token_as_logical_op(&op_token)?;
 
-            expr = self.comparison().map(|right| {
-                Expression::Logical { 
-                    left: Box::new(expr), 
-                    operator, 
-                    right: Box::new(right) 
-                }
+            expr = self.comparison().map(|right| Expression::Logical {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
             })?;
         }
 
@@ -320,15 +375,13 @@ impl<'a> Parser<'a> {
         let mut expr = self.comparison()?;
 
         loop {
-            let Some(op_token) = self.match_next(&[TokenKind::BangEqual, TokenKind::EqualEqual]) else { break; };
+            let Some(op_token) = self.match_next_token(&[TokenKind::BangEqual, TokenKind::EqualEqual]) else { break; };
             let operator = self.parse_token_as_binary_op(&op_token)?;
 
-            expr = self.comparison().map(|right| {
-                Expression::Binary {
-                    left: Box::new(expr),
-                    operator,
-                    right: Box::new(right),
-                }
+            expr = self.comparison().map(|right| Expression::Binary {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
             })?;
         }
 
@@ -339,15 +392,13 @@ impl<'a> Parser<'a> {
         let mut expr = self.term()?;
 
         loop {
-            let Some(op_token) = self.match_next(&[TokenKind::Greater, TokenKind::GreaterEqual, TokenKind::Less, TokenKind::LessEqual]) else { break; };
+            let Some(op_token) = self.match_next_token(&[TokenKind::Greater, TokenKind::GreaterEqual, TokenKind::Less, TokenKind::LessEqual]) else { break; };
             let operator = self.parse_token_as_binary_op(&op_token)?;
 
-            expr = self.term().map(|right| {
-                Expression::Binary {
-                    left: Box::new(expr),
-                    operator,
-                    right: Box::new(right),
-                }
+            expr = self.term().map(|right| Expression::Binary {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
             })?;
         }
 
@@ -358,15 +409,13 @@ impl<'a> Parser<'a> {
         let mut expr = self.factor()?;
 
         loop {
-            let Some(op_token) = self.match_next(&[TokenKind::Minus, TokenKind::Plus]) else { break; };
+            let Some(op_token) = self.match_next_token(&[TokenKind::Minus, TokenKind::Plus]) else { break; };
             let operator = self.parse_token_as_binary_op(&op_token)?;
 
-            expr = self.factor().map(|right| {
-                Expression::Binary {
-                    left: Box::new(expr),
-                    operator,
-                    right: Box::new(right),
-                }
+            expr = self.factor().map(|right| Expression::Binary {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
             })?;
         }
 
@@ -377,15 +426,13 @@ impl<'a> Parser<'a> {
         let mut expr = self.unary()?;
 
         loop {
-            let Some(op_token) = self.match_next(&[TokenKind::Slash, TokenKind::Star]) else { break; };
+            let Some(op_token) = self.match_next_token(&[TokenKind::Slash, TokenKind::Star]) else { break; };
             let operator = self.parse_token_as_binary_op(&op_token)?;
 
-            expr = self.unary().map(|right| {
-                Expression::Binary {
-                    left: Box::new(expr),
-                    operator,
-                    right: Box::new(right),
-                }
+            expr = self.unary().map(|right| Expression::Binary {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
             })?;
         }
 
@@ -393,16 +440,19 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self) -> Result<Expression, LoxError> {
-        let Some(op_token) = self.match_next(&[TokenKind::Bang, TokenKind::Minus]) else { return self.primary(); };
+        let Some(op_token) = self.match_next_token(&[TokenKind::Bang, TokenKind::Minus]) else { return self.primary(); };
         let operator = self.parse_token_as_unary_op(&op_token)?;
 
         let right = self.unary()?;
 
-        return Ok(Expression::Unary { operator, right: Box::new(right) });
+        return Ok(Expression::Unary {
+            operator,
+            right: Box::new(right),
+        });
     }
 
     fn primary(&mut self) -> Result<Expression, LoxError> {
-        match self.match_next(&[
+        match self.match_next_token(&[
             TokenKind::Nil,
             TokenKind::Boolean(bool::default()),
             TokenKind::Number(f64::default()),
@@ -419,9 +469,9 @@ impl<'a> Parser<'a> {
                 let Some(Ok(next_token)) = self.scanner.next() else { return Err(LoxError::with_line("Expected closing parenthesis ')'.", line)) };
 
                 match next_token.kind {
-                    TokenKind::RightParen => {
-                        Ok(Expression::Grouping { expression: Box::new(expr) })
-                    }
+                    TokenKind::RightParen => Ok(Expression::Grouping {
+                        expression: Box::new(expr),
+                    }),
                     TokenKind::Comma => {
                         let mut expressions: Vec<Expression> = Vec::new();
 
@@ -435,9 +485,7 @@ impl<'a> Parser<'a> {
                             let Some(Ok(next_token)) = self.scanner.next() else { return Err(LoxError::with_line("Expected comma ',' or closing parenthesis ')'.", line)) };
 
                             return match next_token.kind {
-                                TokenKind::RightParen => {
-                                    Ok(Expression::Comma { expressions })
-                                }
+                                TokenKind::RightParen => Ok(Expression::Comma { expressions }),
                                 TokenKind::Comma => continue,
                                 _ => Err(LoxError::with_line(
                                     "Expected comma ',' or closing parenthesis ')'.",
@@ -452,13 +500,28 @@ impl<'a> Parser<'a> {
                     )),
                 }
             }
-            Some(Token { kind: TokenKind::Number(n), .. }) => Ok(Expression::LiteralNumber(n)),
-            Some(Token { kind: TokenKind::String(s), .. }) => Ok(Expression::LiteralString(s)),
-            Some(Token { kind: TokenKind::Boolean(b), .. }) => Ok(Expression::LiteralBoolean(b)),
-            Some(Token { kind: TokenKind::Nil, .. }) => Ok(Expression::Nil),
-            Some(t) if matches!(t.kind, TokenKind::Identifier(_))=> Ok(Expression::Variable(t)),
-            Some(_) => Err(LoxError::with_line("Unsupported expression.", 0)),
-            None => Err(LoxError::with_line(&format!("Expected expression. Got {:?}", self.scanner.peek()), 0)),
+            Some(Token {
+                kind: TokenKind::Number(n),
+                ..
+            }) => Ok(Expression::LiteralNumber(n)),
+            Some(Token {
+                kind: TokenKind::String(s),
+                ..
+            }) => Ok(Expression::LiteralString(s)),
+            Some(Token {
+                kind: TokenKind::Boolean(b),
+                ..
+            }) => Ok(Expression::LiteralBoolean(b)),
+            Some(Token {
+                kind: TokenKind::Nil,
+                ..
+            }) => Ok(Expression::Nil),
+            Some(t) if matches!(t.kind, TokenKind::Identifier(_)) => Ok(Expression::Variable(t)),
+            Some(t) => Err(LoxError::with_line("Unexpected token '{}'.", t.line)),
+            None => Err(LoxError::with_line(
+                &format!("Expected expression. Got {:?}", self.scanner.peek()),
+                0,
+            )),
         }
     }
 }

@@ -23,14 +23,14 @@ pub enum UnaryOperator {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogicalOperator {
     And,
-    Or
+    Or,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Assignment {
         identifier: Token,
-        expression: Box<Expression>
+        expression: Box<Expression>,
     },
     Binary {
         left: Box<Expression>,
@@ -50,7 +50,7 @@ pub enum Expression {
     Logical {
         left: Box<Expression>,
         operator: LogicalOperator,
-        right: Box<Expression>
+        right: Box<Expression>,
     },
     LiteralNumber(f64),
     LiteralBoolean(bool),
