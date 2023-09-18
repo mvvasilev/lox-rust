@@ -3,20 +3,26 @@ use std::collections::HashMap;
 use crate::{expr::Expression, err::LoxError, token::Token};
 
 pub struct Environment {
+    pub parent: Option<Box<Environment>>,
     values: HashMap<Identifier, Option<Box<Expression>>>
 }
 
 impl Environment {
-    pub fn new() -> Self {
-        Self { values: HashMap::new() }
+    pub fn new(parent: Option<Box<Environment>>) -> Self {
+        Self { parent, values: HashMap::new() }
     }
 
     pub fn assign(&mut self, name: Identifier, value: Box<Expression>) -> Result<(), LoxError> {
-        let Some(_) = self.values.insert(name.clone(), Some(value)) else {
-            return Err(LoxError::with_message_line(format!("Could not assign nonexistent identifier '{}'", name.name), name.line));
-        };
+        if self.values.contains_key(&name) {
+            self.values.insert(name.clone(), Some(value));
 
-        Ok(())
+            return Ok(());
+        }
+
+        self.parent.as_mut().map_or(
+            Err(LoxError::with_message_line(format!("Could not assign nonexistent identifier '{}'", name.name), name.line)),
+            |e| e.assign(name, value)
+        )
     }
 
     pub fn define(&mut self, name: Identifier, value: Option<Box<Expression>>) {
@@ -24,7 +30,16 @@ impl Environment {
     }
 
     pub fn get(&mut self, name: Identifier) -> Option<Box<Expression>> {
-        return self.values.get(&name).cloned()?;
+        match self.values.get(&name) {
+            Some(v) => v.clone(),
+            None => self.parent.as_mut().map(|e| e.get(name))?
+        }
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Self { parent: Default::default(), values: Default::default() }
     }
 }
 

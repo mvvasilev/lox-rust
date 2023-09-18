@@ -10,7 +10,7 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self { environment: Environment::new() }
+        Self { environment: Environment::new(None) }
     }
 
     pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<(), LoxError> {
@@ -37,6 +37,11 @@ impl Interpreter {
                 self.declare_variable(identifier.into(), initializer)?;
 
                 Ok(())
+            },
+            Statement::BlockStatement { statements } => {
+                self.execute_block_statement(statements)?;
+
+                Ok(())
             }
         }
     }
@@ -58,7 +63,7 @@ impl Interpreter {
                 right,
             } => self.eval_binary_expression(left, operator, right),
             Expression::Unary { operator, right } => self.eval_unary_expression(operator, right),
-            Expression::Comma { expressions } => self.eval_comma_expression(expressions),
+            Expression::Comma { mut expressions } => self.eval_comma_expression(&mut expressions),
             Expression::Grouping { expression } => self.evaluate(expression),
             Expression::Variable(t) => {
                 let Some(v) = self.environment.get(t.clone().into()) else { return Err(LoxError::with_message(&format!("Use of undefined variable '{}'", t))); };
@@ -69,7 +74,20 @@ impl Interpreter {
         }
     }
 
+    fn execute_block_statement(&mut self, statements: Vec<Statement>) -> Result<(), LoxError> {
+        let parent_env = std::mem::take(&mut self.environment);
+        
+        self.environment = Environment::new(Some(Box::new(parent_env)));
 
+        for stmt in statements {
+            self.execute(stmt)?;
+        }
+
+        let Some(parent) = self.environment.parent.take() else { return Err(LoxError::with_message("No parent environment exists")); };
+        self.environment = *parent;
+
+        Ok(())
+    }
 
     fn declare_variable(&mut self, identifier: Token, initializer: Option<Box<Expression>>) -> Result<(), LoxError> {
         let init = initializer.map(|init| self.evaluate(init)).transpose()?;
@@ -89,20 +107,20 @@ impl Interpreter {
 
     fn eval_comma_expression(
         &mut self,
-        expressions: Vec<Box<Expression>>,
+        expressions: &mut Vec<Box<Expression>>,
     ) -> Result<Box<Expression>, LoxError> {
-        
-        let mut i = 0;
+        let mut last_result = None;
 
+        expressions.reverse();
         loop {
-            i += 1;
+            let Some(expr) = expressions.pop() else { break; };
 
-            let result = self.evaluate(expressions[i])?;
-
-            if i == expressions.len() - 1 {
-                return Ok(result);
-            }
+            last_result = Some(self.evaluate(expr)?);
         }
+
+        let Some(result) = last_result else { return Err(LoxError::with_message("Cannot have an empty comma statement")); };
+
+        Ok(result)
     }
 
     fn eval_unary_expression(

@@ -12,4 +12,7 @@ pub enum Statement {
         identifier: Token,
         initializer: Option<Box<Expression>>,
     },
+    BlockStatement {
+        statements: Vec<Statement>
+    }
 }

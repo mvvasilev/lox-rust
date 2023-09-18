@@ -34,9 +34,7 @@ impl<'a> Parser<'a> {
 
         if Parser::match_peeked_token(&next_token.kind, args) {
             self.scanner.next(); // only consume the token if it matched
-
-            // println!("Marched {}", &next_token.kind);
-
+            
             return Some(next_token.clone()); // Yes, the token is one of the ones in the arguments - return it
         }
 
@@ -148,6 +146,13 @@ impl<'a> Parser<'a> {
             return self.print_statement();
         }
 
+        if let Some(Token {
+            kind: TokenKind::LeftBrace,
+            ..
+        }) = self.match_next(&[TokenKind::LeftBrace]) {
+            return self.block_statement();
+        }
+
         self.expression_statement()
     }
 
@@ -160,6 +165,27 @@ impl<'a> Parser<'a> {
         )?;
 
         Ok(Statement::PrintStatement { printable: value })
+    }
+
+    fn block_statement(&mut self) -> Result<Statement, LoxError> {
+        let mut statements = Vec::new();
+
+        loop {
+            let Some(Ok(Token { kind, .. })) = self.scanner.peek() else { break; };
+
+            if kind == &TokenKind::RightBrace {
+                break;
+            }
+
+            statements.push(self.declaration()?);
+        }
+
+        self.consume_next(
+            &TokenKind::RightBrace, 
+            LoxError::with_message("Expected closing bracket '}' after block.")
+        )?;
+
+        Ok(Statement::BlockStatement { statements })
     }
 
     fn expression_statement(&mut self) -> Result<Statement, LoxError> {
@@ -337,7 +363,7 @@ impl<'a> Parser<'a> {
             Some(Token { kind: TokenKind::Nil, .. }) => Ok(Box::new(Expression::Nil)),
             Some(t) if matches!(t.kind, TokenKind::Identifier(_))=> Ok(Box::new(Expression::Variable(t))),
             Some(_) => Err(LoxError::with_line("Unsupported expression.", 0)),
-            None => Err(LoxError::with_line("Expected expression.", 0)),
+            None => Err(LoxError::with_line(&format!("Expected expression. Got {:?}", self.scanner.peek()), 0)),
         }
     }
 }
