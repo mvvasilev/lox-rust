@@ -23,5 +23,5 @@ pub enum Statement {
     WhileStatement {
         condition: Expression,
         body: Box<Statement>,
-    }
+    },
 }

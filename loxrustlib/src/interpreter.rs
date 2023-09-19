@@ -1,5 +1,8 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::{
-    environment::Environment,
+    callable::Callable,
+    environment::{Environment, Identifier},
     err::LoxError,
     expr::{BinaryOperator, Expression, LogicalOperator, UnaryOperator},
     stmt::Statement,
@@ -7,13 +10,52 @@ use crate::{
 };
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Box<Environment>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
+        let mut globals = Environment::new(None);
+
+        struct ClockFunc {}
+
+        impl Callable for ClockFunc {
+            fn new() -> Self
+            where
+                Self: Sized,
+            {
+                Self {}
+            }
+
+            fn arity(&self) -> usize {
+                0
+            }
+
+            fn call(
+                &self,
+                _: &mut Interpreter,
+                _: &Vec<Expression>,
+            ) -> Result<Expression, LoxError> {
+                Ok(Expression::LiteralNumber(
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map_err(|e| LoxError::with_message(&e.to_string()))?
+                        .as_secs_f64(),
+                ))
+            }
+        }
+
+        globals.define_callable(
+            Identifier {
+                name: "clock".to_string(),
+            },
+            Box::new(ClockFunc::new()),
+        );
+
+        let boxed_globals = Box::new(globals);
+
         Self {
-            environment: Environment::new(None),
+            environment: Box::new(Environment::new(Some(boxed_globals))),
         }
     }
 
@@ -135,7 +177,12 @@ impl Interpreter {
                 operator,
                 right,
             } => self.eval_logical_expression(&*left, *operator, &*right),
-            Expression::Variable(t) => {
+            Expression::Call {
+                callee,
+                closing_parenthesis,
+                arguments,
+            } => self.eval_call_expression(&*callee, closing_parenthesis, &arguments), // Avoid clone/copy?
+            Expression::Identifier(t) => {
                 let Some(v) = self.environment.get(&t.into()) else { return Err(LoxError::with_message(&format!("Use of undefined variable '{}'", t))); };
 
                 Ok(v.clone())
@@ -143,21 +190,21 @@ impl Interpreter {
             Expression::LiteralNumber(n) => Ok(Expression::LiteralNumber(*n)), // Avoid clone/copy?
             Expression::LiteralBoolean(b) => Ok(Expression::LiteralBoolean(*b)), // Avoid clone/copy?
             Expression::LiteralString(s) => Ok(Expression::LiteralString(s.clone())), // Avoid clone/copy?
-            Expression::Nil => Ok(Expression::Nil), // Avoid clone/copy?
+            Expression::Nil => Ok(Expression::Nil),
         }
     }
 
     fn execute_block_statement(&mut self, statements: &Vec<Statement>) -> Result<(), LoxError> {
         let parent_env = std::mem::take(&mut self.environment);
 
-        self.environment = Environment::new(Some(Box::new(parent_env)));
+        self.environment = Box::new(Environment::new(Some(parent_env)));
 
         for stmt in statements {
             self.execute(stmt)?;
         }
 
         let Some(parent) = self.environment.parent.take() else { return Err(LoxError::with_message("No parent environment exists")); };
-        self.environment = *parent;
+        self.environment = parent.into();
 
         Ok(())
     }
@@ -240,6 +287,43 @@ impl Interpreter {
         }
 
         self.evaluate(right)
+    }
+
+    fn eval_call_expression(
+        &mut self,
+        callee: &Expression,
+        closing_parenthesis: &Token,
+        arguments: &Vec<Expression>,
+    ) -> Result<Expression, LoxError> {
+        let callee = self.evaluate(callee)?;
+
+        let Expression::Identifier(i) = callee else {
+            return Err(LoxError::with_message_line(format!("Invalid identifier for function call '{}'", callee), closing_parenthesis.line));
+        };
+
+        let identifier = &i.into();
+
+        let Some(callable) = self.environment.get_callable(identifier) else { // Immutable borrow of 'self' here
+            return Err(LoxError::with_message_line(
+                format!("Call to undefined function '{}'", identifier.name),
+                closing_parenthesis.line,
+            ));
+        };
+
+        if arguments.len() != callable.arity() {
+            return Err(LoxError::with_message_line(
+                format!(
+                    "Function '{}' requires {} arguments, but was provided {}.",
+                    identifier.name,
+                    callable.arity(),
+                    arguments.len()
+                ),
+                closing_parenthesis.line,
+            ));
+        }
+
+        // All of this complains because of the immutable borrow of 'self' above, and this is trying to mutably borrow 'self'
+        callable.call(self, &arguments.into_iter().map(|a| self.evaluate(a)).collect::<Result<Vec<_>, _>>()?)
     }
 
     fn eval_binary_expression(

@@ -1,4 +1,8 @@
-use std::{env, fs::read_to_string, io::Write};
+use std::{
+    env,
+    fs::read_to_string,
+    io::{Bytes, Write},
+};
 
 use loxrustlib::{interpreter, parser, scan};
 
