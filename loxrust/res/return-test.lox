@@ -1,0 +1,19 @@
+fun test(a) { 
+	if (a > 5) { 
+		return "a > 5"; 
+	} 
+	
+	return "a <= 5"; 
+}
+
+fun test2(b) { 
+	if (b < 100) { 
+		return test(b); 
+	} else { 
+		return "a > 100"; 
+	}
+}
+
+print test2(101);
+print test2(10);
+print test2(1);

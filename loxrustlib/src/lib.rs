@@ -1,4 +1,4 @@
-pub mod callable;
+pub mod outcome;
 pub mod environment;
 pub mod err;
 pub mod expr;

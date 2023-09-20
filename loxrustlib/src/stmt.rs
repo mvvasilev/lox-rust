@@ -24,4 +24,13 @@ pub enum Statement {
         condition: Expression,
         body: Box<Statement>,
     },
+    FunDeclaration {
+        name: Token,
+        parameters: Vec<Token>,
+        body: Vec<Statement>
+    },
+    ReturnStatement {
+        keyword: Token,
+        value: Expression
+    }
 }

@@ -1,7 +1,7 @@
 use std::{
     env,
     fs::read_to_string,
-    io::{Bytes, Write},
+    io::Write,
 };
 
 use loxrustlib::{interpreter, parser, scan};

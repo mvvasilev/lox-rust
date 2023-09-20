@@ -5,7 +5,7 @@ use crate::{
     expr::{BinaryOperator, Expression, LogicalOperator, UnaryOperator},
     scan::Scanner,
     stmt::Statement,
-    token::{Token, TokenKind},
+    token::{Token, TokenKind}
 };
 
 pub struct Parser<'a> {
@@ -26,7 +26,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return false;
+        false
     }
 
     fn match_next_token(&mut self, args: &[TokenKind]) -> Option<Token> {
@@ -35,7 +35,7 @@ impl<'a> Parser<'a> {
         if Parser::match_peeked_token(&next_token.kind, args) {
             self.scanner.next(); // only consume the token if it matched
 
-            return Some(next_token.clone()); // Yes, the token is one of the ones in the arguments - return it
+            return Some(next_token); // Yes, the token is one of the ones in the arguments - return it
         }
 
         None // No, the token isn't any of the ones provided - return none
@@ -48,7 +48,7 @@ impl<'a> Parser<'a> {
     fn consume_next(&mut self, expected_kind: &TokenKind) -> Result<Token, LoxError> {
         let Some(Ok(Token { kind, line, .. })) = self.scanner.peek() else { return Err(LoxError::with_message("Unexpected end of scan")) };
 
-        if kind == expected_kind {
+        if mem::discriminant(kind) == mem::discriminant(expected_kind) {
             let Some(Ok(token)) = self.scanner.next() else { return Err(LoxError::with_message("Token is of unexpected kind")); };
 
             // if-let with && is not supported. Bummer.
@@ -66,7 +66,8 @@ impl<'a> Parser<'a> {
 
     fn check_next(&mut self, expected_kind: &TokenKind) -> bool {
         let Some(Ok(Token { kind, .. })) = self.scanner.peek() else { return false; };
-        return expected_kind == kind;
+
+        expected_kind == kind
     }
 
     fn parse_token_as_unary_op(&self, token: &Token) -> Result<UnaryOperator, LoxError> {
@@ -133,6 +134,10 @@ impl<'a> Parser<'a> {
             return self.variable_declaration_statement();
         }
 
+        if let Some(TokenKind::Fun) = self.match_next_kind(&[TokenKind::Fun]) {
+            return self.function_declaration();
+        }
+
         self.statement()
     }
 
@@ -155,13 +160,50 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn function_declaration(&mut self) -> Result<Statement, LoxError> {
+        let identifier = self.consume_next(&TokenKind::Identifier(String::default()))?;
+
+        self.consume_next(&TokenKind::LeftParen)?;
+
+        let mut parameters = Vec::new();
+
+        if !self.check_next(&TokenKind::RightParen) {
+            loop {
+                if parameters.len() >= 255 {
+                    return Err(LoxError::with_line(
+                        "Cannot have more than 255 parameters.",
+                        identifier.line,
+                    ));
+                }
+
+                let t = self.consume_next(&TokenKind::Identifier(String::default()))?;
+
+                parameters.push(t);
+
+                if self.match_next_kind(&[TokenKind::Comma]).is_none() {
+                    break;
+                }
+            }
+        }
+
+        let Some(_) = self.match_next_token(&[TokenKind::RightParen]) else { return Err(LoxError::with_line("Expected closing parenthesis", identifier.line))};
+
+        self.consume_next(&TokenKind::LeftBrace)?;
+
+        let body = self.block_statement()?;
+
+        //self.consume_next(&TokenKind::Semicolon)?;
+
+        Ok(Statement::FunDeclaration { name: identifier, parameters, body })
+    }
+
     fn statement(&mut self) -> Result<Statement, LoxError> {
         if let Some(TokenKind::Print) = self.match_next_kind(&[TokenKind::Print]) {
             return self.print_statement();
         }
 
         if let Some(TokenKind::LeftBrace) = self.match_next_kind(&[TokenKind::LeftBrace]) {
-            return self.block_statement();
+            return Ok(Statement::BlockStatement { statements: self.block_statement()? });
         }
 
         if let Some(TokenKind::If) = self.match_next_kind(&[TokenKind::If]) {
@@ -176,6 +218,10 @@ impl<'a> Parser<'a> {
             return self.for_statement();
         }
 
+        if let Some(t) = self.match_next_token(&[TokenKind::Return]) {
+            return self.return_statement(&t);
+        }
+
         self.expression_statement()
     }
 
@@ -185,6 +231,14 @@ impl<'a> Parser<'a> {
         self.consume_next(&TokenKind::Semicolon)?;
 
         Ok(Statement::PrintStatement { printable: value })
+    }
+
+    fn return_statement(&mut self, token: &Token) -> Result<Statement, LoxError> {
+        let value = self.expression()?;
+
+        self.consume_next(&TokenKind::Semicolon)?;
+
+        Ok(Statement::ReturnStatement { keyword: token.clone(), value })
     }
 
     fn if_statement(&mut self) -> Result<Statement, LoxError> {
@@ -231,13 +285,11 @@ impl<'a> Parser<'a> {
         if self.check_next(&TokenKind::Semicolon) {
             self.consume_next(&TokenKind::Semicolon)?;
             initializer = None;
+        } else if self.check_next(&TokenKind::Var) {
+            self.consume_next(&TokenKind::Var)?;
+            initializer = Some(self.variable_declaration_statement()?);
         } else {
-            if self.check_next(&TokenKind::Var) {
-                self.consume_next(&TokenKind::Var)?;
-                initializer = Some(self.variable_declaration_statement()?);
-            } else {
-                initializer = Some(self.expression_statement()?);
-            }
+            initializer = Some(self.expression_statement()?);
         }
 
         let mut condition = None;
@@ -278,7 +330,7 @@ impl<'a> Parser<'a> {
         Ok(body)
     }
 
-    fn block_statement(&mut self) -> Result<Statement, LoxError> {
+    fn block_statement(&mut self) -> Result<Vec<Statement>, LoxError> {
         let mut statements = Vec::new();
 
         loop {
@@ -293,7 +345,7 @@ impl<'a> Parser<'a> {
 
         self.consume_next(&TokenKind::RightBrace)?;
 
-        Ok(Statement::BlockStatement { statements })
+        Ok(statements)
     }
 
     fn expression_statement(&mut self) -> Result<Statement, LoxError> {
@@ -313,7 +365,7 @@ impl<'a> Parser<'a> {
 
         let Some(Ok(previous)) = self.scanner.peek().cloned() else { return Err(LoxError::with_message("Invalid assignment expression")); };
 
-        if let Some(_) = self.match_next_token(&[TokenKind::Equal]) {
+        if self.match_next_token(&[TokenKind::Equal]).is_some() {
             let value = self.assignment()?;
 
             if let Expression::Identifier(v) = expr {
@@ -435,51 +487,48 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self) -> Result<Expression, LoxError> {
-        let Some(op_token) = self.match_next_token(&[TokenKind::Bang, TokenKind::Minus]) else { return self.primary(); };
+        let Some(op_token) = self.match_next_token(&[TokenKind::Bang, TokenKind::Minus]) else { return self.call(); };
         let operator = self.parse_token_as_unary_op(&op_token)?;
 
         let right = self.call()?;
 
-        return Ok(Expression::Unary {
+        Ok(Expression::Unary {
             operator,
             right: Box::new(right),
-        });
+        })
     }
 
     fn call(&mut self) -> Result<Expression, LoxError> {
-        let expr = self.primary()?;
+        let mut expr = self.primary()?;
 
-        loop {
-            if let Some(opening_paren) = self.match_next_token(&[TokenKind::LeftParen]) {
-                let mut arguments = Vec::new();
+        
+        while let Some(opening_paren) = self.match_next_token(&[TokenKind::LeftParen]) {
+            let mut arguments = Vec::new();
 
-                if !self.check_next(&TokenKind::RightParen) {
-                    loop {
-                        if arguments.len() >= 255 {
-                            return Err(LoxError::with_line(
-                                "Cannot have more than 255 arguments to a call.",
-                                opening_paren.line,
-                            ));
-                        }
+            if !self.check_next(&TokenKind::RightParen) {
+                loop {
+                    if arguments.len() >= 255 {
+                        return Err(LoxError::with_line(
+                            "Cannot have more than 255 arguments to a call.",
+                            opening_paren.line,
+                        ));
+                    }
 
-                        arguments.push(self.expression()?);
+                    arguments.push(self.expression()?);
 
-                        if let None = self.match_next_kind(&[TokenKind::Comma]) {
-                            break;
-                        }
+                    if self.match_next_kind(&[TokenKind::Comma]).is_none() {
+                        break;
                     }
                 }
-
-                let Some(t) = self.match_next_token(&[TokenKind::RightParen]) else { return Err(LoxError::with_line("Expected closing parenthesis", opening_paren.line))};
-
-                return Ok(Expression::Call {
-                    callee: Box::new(expr),
-                    closing_parenthesis: t,
-                    arguments,
-                });
-            } else {
-                break;
             }
+
+            let Some(t) = self.match_next_token(&[TokenKind::RightParen]) else { return Err(LoxError::with_line("Expected closing parenthesis", opening_paren.line))};
+
+            expr = Expression::Call {
+                callee: Box::new(expr),
+                closing_parenthesis: t,
+                arguments,
+            };
         }
 
         Ok(expr)

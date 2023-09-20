@@ -1,11 +1,15 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
-use crate::{callable::Callable, err::LoxError, expr::Expression, token::Token};
+use crate::{interpreter::Callable, err::LoxError, expr::Expression, token::Token};
+use crate::outcome::Outcome;
+use crate::outcome::BreakReason::Errored;
+use crate::outcome::BreakReason::Returned;
 
+#[derive(Default)]
 pub struct Environment {
     pub parent: Option<Box<Environment>>,
 
-    callables: HashMap<Identifier, Box<dyn Callable>>,
+    callables: HashMap<Identifier, Rc<dyn Callable>>,
     variables: HashMap<Identifier, Option<Expression>>,
 }
 
@@ -18,31 +22,31 @@ impl Environment {
         }
     }
 
-    pub fn get_callable(&self, name: &Identifier) -> Option<&Box<dyn Callable>> {
+    pub fn get_callable(&self, name: &Identifier) -> Option<Rc<dyn Callable>> {
         match self.callables.get(name) {
-            Some(callable) => Some(callable),
+            Some(callable) => Some(callable.clone()),
             None => self.parent.as_ref().map(|e| e.get_callable(name))?,
         }
     }
 
-    pub fn define_callable(&mut self, name: Identifier, callable: Box<dyn Callable>) {
+    pub fn define_callable(&mut self, name: Identifier, callable: Rc<dyn Callable>) {
         self.callables.insert(name, callable);
     }
 
-    pub fn assign(&mut self, name: Identifier, value: Expression) -> Result<(), LoxError> {
-        if self.variables.contains_key(&name) {
-            self.variables.insert(name.clone(), Some(value));
+    pub fn assign(&mut self, name: &Identifier, value: Expression) -> Outcome<()> {
+        if let std::collections::hash_map::Entry::Occupied(mut e) = self.variables.entry(name.clone()) {
+            e.insert(Some(value));
 
-            return Ok(());
+            Ok(())
+        } else {
+            self.parent.as_mut().map_or(
+                Err(Errored(LoxError::with_message(&format!(
+                    "Could not assign nonexistent identifier '{}'",
+                    name.name
+                )))),
+                |e| e.assign(name, value),
+            )
         }
-
-        self.parent.as_mut().map_or(
-            Err(LoxError::with_message(&format!(
-                "Could not assign nonexistent identifier '{}'",
-                name.name
-            ))),
-            |e| e.assign(name, value),
-        )
     }
 
     pub fn define(&mut self, name: Identifier, value: Option<Expression>) {
@@ -67,16 +71,6 @@ impl Environment {
             upper.print_vars(level + 1);
 
             current = upper;
-        }
-    }
-}
-
-impl Default for Environment {
-    fn default() -> Self {
-        Self {
-            parent: Default::default(),
-            callables: Default::default(),
-            variables: Default::default(),
         }
     }
 }

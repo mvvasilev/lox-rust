@@ -34,7 +34,7 @@ impl LoxError {
 
     pub fn with_internal(err: LoxError, line: usize) -> Self {
         Self {
-            message: format!("- {}: {}\n", line, err.to_string()),
+            message: format!("- {}: {}\n", line, err),
             line,
             internal: Some(Rc::new(err)),
         }
@@ -56,7 +56,7 @@ impl std::error::Error for LoxError {}
 impl fmt::Display for LoxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Some(internal_error) = &self.internal else {
-            return write!(f, "Error occurred at line {}: {}\n", self.line, self.message)
+            return writeln!(f, "Error occurred at line {}: {}", self.line, self.message)
         };
 
         write!(

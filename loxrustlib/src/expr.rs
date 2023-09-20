@@ -63,7 +63,7 @@ pub enum Expression {
     LiteralBoolean(bool),
     LiteralString(String),
     Nil,
-    Identifier(Token),
+    Identifier(Token)
 }
 
 impl Display for Expression {

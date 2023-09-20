@@ -10,7 +10,7 @@ pub struct Scanner<'a> {
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(string: &'a String) -> Self {
+    pub fn new(string: &'a str) -> Self {
         Self {
             reader: string.chars().peekable(),
             line: 1,
@@ -25,7 +25,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn is_digit(&self, c: char) -> bool {
-        c >= '0' && c <= '9'
+        c.is_ascii_digit()
     }
 
     fn is_alphabetical(&mut self, alpha_char: char) -> bool {
@@ -116,8 +116,8 @@ impl<'a> Scanner<'a> {
         let ident = String::from_iter(buf);
 
         match self.match_keyword(ident.clone()) {
-            Some(token) => return Ok(token),
-            None => return Ok(self.create_token(TokenKind::Identifier(ident.clone()), ident)),
+            Some(token) => Ok(token),
+            None => Ok(self.create_token(TokenKind::Identifier(ident.clone()), ident)),
         }
     }
 
