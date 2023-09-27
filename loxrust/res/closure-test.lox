@@ -1,0 +1,9 @@
+fun test() {
+    fun test2() { 
+        return "test"
+    } 
+    
+    return test2; 
+} 
+
+print test()();

@@ -25,6 +25,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug 'rlox return-test.lox'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=rlox",
+                    "--package=loxrust_workspace"
+                ],
+                "filter": {
+                    "name": "rlox",
+                    "kind": "bin"
+                }
+            },
+            "args": [ "${workspaceFolder}/loxrust/res/closure-text.lox" ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'rlox'",
             "cargo": {
                 "args": [
