@@ -1,20 +1,22 @@
+use std::cell::RefCell;
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{interpreter::Callable, err::LoxError, expr::Expression, token::Token};
+use crate::funcs::callable::Callable;
+use crate::{err::LoxError, expr::Expression, token::Token};
 use crate::outcome::Outcome;
 use crate::outcome::BreakReason::Errored;
 use crate::outcome::BreakReason::Returned;
 
 #[derive(Default)]
 pub struct Environment {
-    pub parent: Option<Box<Environment>>,
+    pub parent: Option<Rc<RefCell<Environment>>>,
 
     callables: HashMap<Identifier, Rc<dyn Callable>>,
     variables: HashMap<Identifier, Option<Expression>>,
 }
 
 impl Environment {
-    pub fn new(parent: Option<Box<Environment>>) -> Self {
+    pub fn new(parent: Option<Rc<RefCell<Environment>>>) -> Self {
         Self {
             parent,
             callables: HashMap::new(),
@@ -25,7 +27,7 @@ impl Environment {
     pub fn get_callable(&self, name: &Identifier) -> Option<Rc<dyn Callable>> {
         match self.callables.get(name) {
             Some(callable) => Some(callable.clone()),
-            None => self.parent.as_ref().map(|e| e.get_callable(name))?,
+            None => self.parent.as_ref().map(|e| e.borrow().get_callable(name))?,
         }
     }
 
@@ -44,7 +46,7 @@ impl Environment {
                     "Could not assign nonexistent identifier '{}'",
                     name.name
                 )))),
-                |e| e.assign(name, value),
+                |e| e.borrow_mut().assign(name, value),
             )
         }
     }
@@ -53,10 +55,17 @@ impl Environment {
         self.variables.insert(name, value);
     }
 
-    pub fn get(&self, name: &Identifier) -> Option<&Expression> {
+    pub fn get(&self, name: &Identifier) -> Option<Expression> {
         match self.variables.get(name) {
-            Some(v) => v.as_ref(),
-            None => self.parent.as_ref().map(|e| e.get(name))?,
+            Some(v) => v.clone(),
+            None => {
+                match &self.parent {
+                    Some(p) => {
+                        p.borrow().get(name)
+                    },
+                    None => None,
+                }
+            },
         }
     }
 
@@ -65,12 +74,8 @@ impl Environment {
             println!("{}. {}: {:?}", level, k.name, v);
         }
 
-        let mut current = self;
-
-        while let Some(upper) = &current.parent {
-            upper.print_vars(level + 1);
-
-            current = upper;
+        if let Some(upper) = &self.parent {
+            upper.borrow().print_vars(level + 1);
         }
     }
 }

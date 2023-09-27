@@ -1,5 +1,5 @@
-use std::{time::{SystemTime, UNIX_EPOCH}, rc::Rc};
-use crate::outcome::Outcome;
+use std::{rc::Rc, cell::RefCell};
+use crate::{outcome::Outcome, funcs::{clockfunc::ClockFunc, loxfunc::LoxDefinedFunction}};
 use crate::outcome::BreakReason::Errored;
 use crate::outcome::BreakReason::Returned;
 
@@ -11,101 +11,27 @@ use crate::{
     token::Token,
 };
 
-pub trait Callable {
-    fn arity(&self) -> usize;
-
-    fn call(
-        &self,
-        interpreter: &mut Interpreter,
-        args: &[Expression],
-    ) -> Outcome<Expression>;
-}
-
-struct ClockFunc {}
-
-impl ClockFunc {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Self {}
-    }
-}
-
-impl Callable for ClockFunc {
-    fn arity(&self) -> usize {
-        0
-    }
-
-    fn call(
-        &self,
-        _: &mut Interpreter,
-        _: &[Expression],
-    ) -> Outcome<Expression> {
-        Ok(Expression::LiteralNumber(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|e| Errored(LoxError::with_message(&e.to_string())))?
-                .as_secs_f64(),
-        ))
-    }
-}
-
-struct LoxDefinedFunction {
-    parameters: Vec<Token>,
-    body: Vec<Statement>
-}
-
-impl LoxDefinedFunction {
-    fn new(parameters: Vec<Token>, body: Vec<Statement>) -> Self
-    where
-        Self: Sized {
-        Self {
-            parameters, body
-        }
-    }
-}
-
-impl Callable for LoxDefinedFunction {
-    fn arity(&self) -> usize {
-        self.parameters.len()
-    }
-
-    fn call(&self, interpreter: &mut Interpreter, args: &[Expression]) -> Outcome<Expression> {
-        let parent_env = std::mem::take(&mut interpreter.environment);
-
-        interpreter.environment = Box::new(Environment::new(Some(parent_env)));
-        
-        for (i, param_name) in self.parameters.iter().enumerate() {
-            interpreter.environment.define(param_name.clone().into(), args.get(i).cloned());
-        }
-
-        interpreter.execute_block_statement(self.body.as_ref())?;
-
-        Ok(Expression::Nil)
-    }
-}
-
 #[derive(Default)]
 pub struct Interpreter {
-    environment: Box<Environment>,
+    pub global_env: Rc<RefCell<Environment>>,
+    pub current_env: Rc<RefCell<Environment>>
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        let mut globals = Environment::new(None);
+        let globals = Rc::new(RefCell::new(Environment::new(None)));
 
-        globals.define_callable(
+        globals.borrow_mut().define_callable(
             Identifier {
                 name: "clock".to_string(),
             },
             Rc::new(ClockFunc::new()),
         );
 
-        let boxed_globals = Box::new(globals);
 
         Self {
-            environment: Box::new(Environment::new(Some(boxed_globals))),
+            global_env: globals.clone(),
+            current_env: globals,
         }
     }
 
@@ -113,6 +39,7 @@ impl Interpreter {
         for s in statements {
             if let Err(Errored(e)) = self.execute(&s) {
                 self.dump_environment();
+                println!("{:?}", &s);
 
                 return Err(Errored(e));
             }
@@ -122,10 +49,10 @@ impl Interpreter {
     }
 
     fn dump_environment(&mut self) {
-        self.environment.print_vars(0);
+        self.current_env.borrow().print_vars(0);
     }
 
-    fn execute(&mut self, statement: &Statement) -> Outcome<()> {
+    pub fn execute(&mut self, statement: &Statement) -> Outcome<()> {
         match statement {
             Statement::ExpressionStatement { expression } => {
                 self.evaluate(expression)?;
@@ -146,7 +73,7 @@ impl Interpreter {
                 Ok(())
             }
             Statement::BlockStatement { statements } => {
-                self.execute_block_statement(statements)?;
+                self.execute_block_statement(statements, Environment::new(Some(self.current_env.clone())))?;
 
                 Ok(())
             }
@@ -219,11 +146,11 @@ impl Interpreter {
     fn define_function(&mut self, name: &Token, parameters: &[Token], body: &[Statement]) -> Outcome<()> {
         let identifier = name.into();
 
-        if self.environment.get_callable(&identifier).is_some() {
+        if self.current_env.borrow().get_callable(&identifier).is_some() {
             return Err(Errored(LoxError::with_message_line(format!("Function named '{}' already exists", identifier.name), name.line)))
         }
 
-        self.environment.define_callable(identifier, Rc::new(LoxDefinedFunction::new(parameters.to_owned(), body.to_owned())));
+        self.current_env.borrow_mut().define_callable(identifier, Rc::new(LoxDefinedFunction::new(parameters.to_owned(), body.to_owned())));
 
         Ok(())
     }
@@ -253,15 +180,17 @@ impl Interpreter {
                 arguments,
             } => self.eval_call_expression(callee, closing_parenthesis, arguments), // Avoid clone/copy?
             Expression::Identifier(t) => {
-                if self.environment.get_callable(&t.into()).is_some() {
+                let env = self.current_env.borrow();
+
+                if env.get_callable(&t.into()).is_some() {
                     return Ok(Expression::LiteralString(format!("<fn {}>", t.lexeme)));
                 }
 
-                let Some(v) = self.environment.get(&t.into()) else { 
+                let Some(v) = env.get(&t.into()) else { 
                     return Err(Errored(LoxError::with_message(&format!("Use of undefined variable '{}'", t)))); 
                 };
 
-                Ok(v.clone())
+                Ok(v)
             }
             Expression::LiteralNumber(n) => Ok(Expression::LiteralNumber(*n)), // Avoid clone/copy?
             Expression::LiteralBoolean(b) => Ok(Expression::LiteralBoolean(*b)), // Avoid clone/copy?
@@ -270,17 +199,17 @@ impl Interpreter {
         }
     }
 
-    fn execute_block_statement(&mut self, statements: &[Statement]) -> Outcome<()> {
-        let parent_env = std::mem::take(&mut self.environment);
+    pub fn execute_block_statement(&mut self, statements: &[Statement], environment: Environment) -> Outcome<()> {
+        let parent_env = std::mem::take(&mut self.current_env);
 
-        self.environment = Box::new(Environment::new(Some(parent_env)));
+        self.current_env = Rc::new(RefCell::new(Environment::new(Some(parent_env))));
 
         for stmt in statements {
             self.execute(stmt)?;
         }
 
-        let Some(parent) = self.environment.parent.take() else { return Err(Errored(LoxError::with_message("No parent environment exists"))); };
-        self.environment = parent;
+        let Some(parent) = self.current_env.borrow_mut().parent.take() else { return Err(Errored(LoxError::with_message("No parent environment exists"))); };
+        self.current_env = parent;
 
         Ok(())
     }
@@ -295,7 +224,7 @@ impl Interpreter {
             .map(|init| self.evaluate(init))
             .transpose()?;
 
-        self.environment.define(identifier.into(), init);
+        self.current_env.borrow_mut().define(identifier.into(), init);
 
         Ok(())
     }
@@ -307,7 +236,7 @@ impl Interpreter {
     ) -> Outcome<Expression> {
         let value = self.evaluate(expression)?;
 
-        self.environment.assign(&identifier.into(), value.clone())?;
+        self.current_env.borrow_mut().assign(&identifier.into(), value.clone())?;
 
         Ok(value)
     }
@@ -373,17 +302,17 @@ impl Interpreter {
     ) -> Outcome<Expression> {
         let identifier;
 
-        if let Expression::Identifier(i) = callee {
-            identifier = i.into();
+        if let Expression::Identifier(t) = callee {
+            identifier = t.into();
         } else {
-            let Expression::Identifier(i) = self.evaluate(callee)? else {
+            let Expression::Identifier(t) = self.evaluate(callee)? else {
                 return Err(Errored(LoxError::with_message_line(format!("Invalid identifier for function call '{}'", callee), closing_parenthesis.line)));
             };
 
-            identifier = i.into();
+            identifier = t.into();
         }
 
-        let Some(callable) = self.environment.get_callable(&identifier) else {
+        let Some(callable) = self.current_env.borrow().get_callable(&identifier) else {
             return Err(Errored(LoxError::with_message_line(
                 format!("Call to undefined function '{}'", identifier.name),
                 closing_parenthesis.line,

@@ -7,3 +7,4 @@ pub mod parser;
 pub mod scan;
 pub mod stmt;
 pub mod token;
+pub mod funcs;
