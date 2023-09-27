@@ -182,8 +182,8 @@ impl Interpreter {
             Expression::Identifier(t) => {
                 let env = self.current_env.borrow();
 
-                if env.get_callable(&t.into()).is_some() {
-                    return Ok(Expression::LiteralString(format!("<fn {}>", t.lexeme)));
+                if let Some(_) = env.get_callable(&t.into()) {
+                    return Ok(Expression::Identifier(t.clone()));
                 }
 
                 let Some(v) = env.get(&t.into()) else { 
@@ -305,8 +305,10 @@ impl Interpreter {
         if let Expression::Identifier(t) = callee {
             identifier = t.into();
         } else {
-            let Expression::Identifier(t) = self.evaluate(callee)? else {
-                return Err(Errored(LoxError::with_message_line(format!("Invalid identifier for function call '{}'", callee), closing_parenthesis.line)));
+            let eval_result = self.evaluate(callee)?;
+
+            let Expression::Identifier(t) = eval_result else {
+                return Err(Errored(LoxError::with_message_line(format!("Invalid identifier for function call '{}'", eval_result), closing_parenthesis.line)));
             };
 
             identifier = t.into();

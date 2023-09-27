@@ -1,7 +1,7 @@
-fun test() {
+fun test(a) {
     fun test2() { 
-        return "test"
-    } 
+        return "test";
+    }
     
     return test2; 
 } 

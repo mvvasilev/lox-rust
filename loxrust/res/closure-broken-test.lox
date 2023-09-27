@@ -1,0 +1,17 @@
+var a = 0;
+
+fun test() {
+    a = a + 1;
+
+    fun test2() {
+        var b = a;
+        print b;
+    }
+
+    var a = 10;
+    a = a + 1;
+
+    return test2;
+}
+
+test()();
