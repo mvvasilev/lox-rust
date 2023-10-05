@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell};
+use std::{rc::Rc, cell::RefCell, collections::HashMap};
 use crate::{outcome::Outcome, funcs::{clockfunc::ClockFunc, loxfunc::LoxDefinedFunction}};
 use crate::outcome::BreakReason::Errored;
 use crate::outcome::BreakReason::Returned;
@@ -14,7 +14,8 @@ use crate::{
 #[derive(Default)]
 pub struct Interpreter {
     pub global_env: Rc<RefCell<Environment>>,
-    pub current_env: Rc<RefCell<Environment>>
+    pub current_env: Rc<RefCell<Environment>>,
+    locals: HashMap<u16, usize>
 }
 
 impl Interpreter {
@@ -32,6 +33,7 @@ impl Interpreter {
         Self {
             global_env: globals.clone(),
             current_env: globals,
+            locals: HashMap::new()
         }
     }
 
@@ -158,6 +160,7 @@ impl Interpreter {
     fn evaluate(&mut self, expression: &Expression) -> Outcome<Expression> {
         match expression {
             Expression::Assignment {
+                id: _,
                 identifier,
                 expression,
             } => self.eval_assignment_expression(identifier.clone(), expression),
@@ -178,23 +181,11 @@ impl Interpreter {
                 callee,
                 closing_parenthesis,
                 arguments,
-            } => self.eval_call_expression(callee, closing_parenthesis, arguments), // Avoid clone/copy?
-            Expression::Identifier(t) => {
-                let env = self.current_env.borrow();
-
-                if env.get_callable(&t.into()).is_some() {
-                    return Ok(Expression::LiteralString(format!("<fn {}>", t.lexeme)));
-                }
-
-                let Some(v) = env.get(&t.into()) else { 
-                    return Err(Errored(LoxError::with_message(&format!("Use of undefined variable '{}'", t)))); 
-                };
-
-                Ok(v)
-            }
-            Expression::LiteralNumber(n) => Ok(Expression::LiteralNumber(*n)), // Avoid clone/copy?
-            Expression::LiteralBoolean(b) => Ok(Expression::LiteralBoolean(*b)), // Avoid clone/copy?
-            Expression::LiteralString(s) => Ok(Expression::LiteralString(s.clone())), // Avoid clone/copy?
+            } => self.eval_call_expression(callee, closing_parenthesis, arguments),
+            Expression::Identifier(id, t) => self.eval_identifier(t),
+            Expression::LiteralNumber(n) => Ok(Expression::LiteralNumber(*n)),
+            Expression::LiteralBoolean(b) => Ok(Expression::LiteralBoolean(*b)),
+            Expression::LiteralString(s) => Ok(Expression::LiteralString(s.clone())),
             Expression::Nil => Ok(Expression::Nil)
         }
     }
@@ -302,10 +293,10 @@ impl Interpreter {
     ) -> Outcome<Expression> {
         let identifier;
 
-        if let Expression::Identifier(t) = callee {
+        if let Expression::Identifier(id, t) = callee {
             identifier = t.into();
         } else {
-            let Expression::Identifier(t) = self.evaluate(callee)? else {
+            let Expression::Identifier(id, t) = self.evaluate(callee)? else {
                 return Err(Errored(LoxError::with_message_line(format!("Invalid identifier for function call '{}'", callee), closing_parenthesis.line)));
             };
 
@@ -427,6 +418,28 @@ impl Interpreter {
         }
     }
 
+    fn eval_identifier(&self, token: &Token) -> Outcome<Expression> {
+        let env = self.current_env.borrow();
+
+        if env.get_callable(&token.into()).is_some() {
+            return Ok(Expression::LiteralString(format!("<fn {}>", token.lexeme)));
+        }
+
+        let Some(v) = env.get(&token.into()) else { 
+            return Err(Errored(LoxError::with_message(&format!("Use of undefined variable '{}'", token)))); 
+        };
+
+        Ok(v)
+    }
+
+    fn look_up_variable(&self, name: &Token, expression: u16) -> Option<Expression> {
+        if let Some(distance) = self.locals.get(&expression) {
+            self.current_env.borrow().get_at(*distance, &name.into())
+        } else {
+            self.global_env.borrow().get(&name.into())
+        }
+    }
+
     fn numeric_operation<N>(
         &self,
         left: &Expression,
@@ -509,5 +522,9 @@ impl Interpreter {
         }
 
         true
+    }
+
+    pub fn resolve(&mut self, expression_id: u16, depth: usize) {
+        self.locals.insert(expression_id, depth);
     }
 }

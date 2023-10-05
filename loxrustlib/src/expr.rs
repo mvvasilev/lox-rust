@@ -31,6 +31,7 @@ pub enum LogicalOperator {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Assignment {
+        id: u16,
         identifier: Token,
         expression: Box<Expression>,
     },
@@ -63,7 +64,7 @@ pub enum Expression {
     LiteralBoolean(bool),
     LiteralString(String),
     Nil,
-    Identifier(Token)
+    Identifier(u16, Token)
 }
 
 impl Display for Expression {
@@ -73,7 +74,7 @@ impl Display for Expression {
             Expression::LiteralBoolean(b) => write!(f, "{}", b),
             Expression::LiteralString(s) => write!(f, "{}", s),
             Expression::Nil => write!(f, "nil"),
-            Expression::Identifier(s) => write!(f, "var {}", s),
+            Expression::Identifier(id, s) => write!(f, "var {}:{}", id, s),
             e => write!(f, "{:?}", e),
         }
     }

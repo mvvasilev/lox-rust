@@ -6,6 +6,7 @@ use crate::{err::LoxError, expr::Expression, token::Token};
 use crate::outcome::Outcome;
 use crate::outcome::BreakReason::Errored;
 use crate::outcome::BreakReason::Returned;
+use std::collections::hash_map::Entry::Occupied;
 
 #[derive(Default)]
 pub struct Environment {
@@ -36,7 +37,7 @@ impl Environment {
     }
 
     pub fn assign(&mut self, name: &Identifier, value: Expression) -> Outcome<()> {
-        if let std::collections::hash_map::Entry::Occupied(mut e) = self.variables.entry(name.clone()) {
+        if let Occupied(mut e) = self.variables.entry(name.clone()) {
             e.insert(Some(value));
 
             Ok(())
@@ -77,6 +78,14 @@ impl Environment {
         if let Some(upper) = &self.parent {
             upper.borrow().print_vars(level + 1);
         }
+    }
+
+    pub fn get_at(&self, distance: usize, identifier: &Identifier) -> Option<Expression> {
+        if distance == 0 {
+            return self.get(identifier);
+        }
+
+        self.parent.as_ref().and_then(|p| p.borrow().get_at(distance - 1, identifier))
     }
 }
 

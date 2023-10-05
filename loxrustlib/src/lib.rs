@@ -8,3 +8,4 @@ pub mod scan;
 pub mod stmt;
 pub mod token;
 pub mod funcs;
+pub mod resolver;

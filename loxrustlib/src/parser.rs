@@ -10,12 +10,14 @@ use crate::{
 
 pub struct Parser<'a> {
     scanner: Peekable<Scanner<'a>>,
+    identifier_counter: u16
 }
 
 impl<'a> Parser<'a> {
     pub fn new(scanner: Scanner<'a>) -> Self {
         Self {
             scanner: scanner.peekable(),
+            identifier_counter: 0
         }
     }
 
@@ -368,8 +370,9 @@ impl<'a> Parser<'a> {
         if self.match_next_token(&[TokenKind::Equal]).is_some() {
             let value = self.assignment()?;
 
-            if let Expression::Identifier(v) = expr {
+            if let Expression::Identifier(id, v) = expr {
                 return Ok(Expression::Assignment {
+                    id,
                     identifier: v,
                     expression: Box::new(value),
                 });
@@ -599,12 +602,18 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Nil,
                 ..
             }) => Ok(Expression::Nil),
-            Some(t) if matches!(t.kind, TokenKind::Identifier(_)) => Ok(Expression::Identifier(t)),
+            Some(t) if matches!(t.kind, TokenKind::Identifier(_)) => Ok(Expression::Identifier(self.generate_id(), t)),
             Some(t) => Err(LoxError::with_line("Unexpected token '{}'.", t.line)),
             None => Err(LoxError::with_line(
                 &format!("Expected expression. Got {:?}", self.scanner.peek()),
                 0,
             )),
         }
+    }
+
+    fn generate_id(&mut self) -> u16 {
+        self.identifier_counter += 1;
+
+        self.identifier_counter
     }
 }
