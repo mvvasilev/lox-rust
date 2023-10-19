@@ -28,11 +28,11 @@ impl<'a> Scanner<'a> {
         c.is_ascii_digit()
     }
 
-    fn is_alphabetical(&mut self, alpha_char: char) -> bool {
+    fn is_alphabetical(&self, alpha_char: char) -> bool {
         alpha_char.is_alphabetic() || alpha_char == '_'
     }
 
-    fn is_alphanumeric(&mut self, c: char) -> bool {
+    fn is_alphanumeric(&self, c: char) -> bool {
         self.is_alphabetical(c) || self.is_digit(c)
     }
 

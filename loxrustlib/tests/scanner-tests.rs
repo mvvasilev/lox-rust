@@ -101,7 +101,7 @@ fn assert_token_stream_equality(expected: &[Token], input: String) {
 }
 
 fn token_of(kind: TokenKind) -> Token {
-    token_of_at(kind, 1)
+    token_of_at(kind, "", 1)
 }
 
 fn token_of_at(kind: TokenKind, lexeme: &str, line: usize) -> Token {

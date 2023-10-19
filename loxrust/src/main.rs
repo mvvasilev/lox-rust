@@ -30,6 +30,8 @@ fn main() {
             }
         };
 
+        println!("{:?}", statements);
+
         match interpreter.interpret(statements) {
             Ok(_) => (),
             Err(e) => println!("Failed to execute: {}", e),
@@ -52,6 +54,8 @@ fn main() {
                     continue;
                 }
             };
+
+            println!("{:?}", statements);
 
             match interpreter.interpret(statements) {
                 Ok(_) => (),

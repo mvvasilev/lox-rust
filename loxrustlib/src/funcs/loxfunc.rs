@@ -1,18 +1,22 @@
+use std::cell::RefCell;
+use std::collections::LinkedList;
+use std::rc::Rc;
 use crate::{stmt::Statement, token::Token, interpreter::Interpreter, expr::Expression, outcome::Outcome, environment::Environment};
 
 use super::callable::Callable;
 
 pub struct LoxDefinedFunction {
     parameters: Vec<Token>,
-    body: Vec<Statement>
+    body: Vec<Statement>,
+    parent_env: LinkedList<Rc<RefCell<Environment>>>
 }
 
 impl LoxDefinedFunction {
-    pub fn new(parameters: Vec<Token>, body: Vec<Statement>) -> Self
+    pub fn new(parameters: Vec<Token>, body: Vec<Statement>, parent_env: LinkedList<Rc<RefCell<Environment>>>) -> Self
     where
         Self: Sized {
         Self {
-            parameters, body
+            parameters, body, parent_env
         }
     }
 }
@@ -23,14 +27,14 @@ impl Callable for LoxDefinedFunction {
     }
 
     fn call(&self, interpreter: &mut Interpreter, args: &[Expression]) -> Outcome<Expression> {
-        let mut env = Environment::new(Some(interpreter.global_env.clone()));
+        let mut env = Environment::new();
         
         for (i, param_name) in self.parameters.iter().enumerate() {
-            env.define(param_name.clone().into(), args.get(i).cloned());
+            env.define(param_name.lexeme.clone(), args.get(i).cloned());
         }
 
         
-        interpreter.execute_block_statement(&self.body, env)?;
+        interpreter.execute_block_statement_in_environment(&self.body, self.parent_env.clone())?;
 
         Ok(Expression::Nil)
     }

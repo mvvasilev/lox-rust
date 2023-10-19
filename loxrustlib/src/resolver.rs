@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use crate::interpreter::Interpreter;
 use crate::{stmt::Statement, outcome::Outcome, expr::Expression, token::Token, err::LoxError};
