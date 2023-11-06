@@ -27,10 +27,10 @@ pub enum Statement {
     FunDeclaration {
         name: Token,
         parameters: Vec<Token>,
-        body: Vec<Statement>
+        body: Vec<Statement>,
     },
     ReturnStatement {
         keyword: Token,
-        value: Expression
-    }
+        value: Expression,
+    },
 }

@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{interpreter::Interpreter, expr::Expression, outcome::Outcome, err::LoxError};
 use crate::outcome::BreakReason::Errored;
+use crate::{err::LoxError, expr::Expression, interpreter::Interpreter, outcome::Outcome};
 
 use super::callable::Callable;
 
@@ -27,11 +27,7 @@ impl Callable for ClockFunc {
         0
     }
 
-    fn call(
-        &self,
-        _: &mut Interpreter,
-        _: &[Expression],
-    ) -> Outcome<Expression> {
+    fn call(&self, _: &mut Interpreter, _: &[Expression]) -> Outcome<Expression> {
         Ok(Expression::LiteralNumber(
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)

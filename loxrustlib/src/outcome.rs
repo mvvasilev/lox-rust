@@ -7,7 +7,7 @@ pub type Outcome<T> = Result<T, BreakReason>;
 #[derive(Clone)]
 pub enum BreakReason {
     Errored(LoxError),
-    Returned(Expression)
+    Returned(Expression),
 }
 
 impl Display for BreakReason {

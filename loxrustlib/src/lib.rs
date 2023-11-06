@@ -1,11 +1,11 @@
-pub mod outcome;
 pub mod environment;
 pub mod err;
 pub mod expr;
+pub mod funcs;
 pub mod interpreter;
+pub mod outcome;
 pub mod parser;
+pub mod resolver;
 pub mod scan;
 pub mod stmt;
 pub mod token;
-pub mod funcs;
-pub mod resolver;

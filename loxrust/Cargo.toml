@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 loxrustlib = { path = "../loxrustlib" }
+loxrustlib_vm = { path = "../loxrustlib_vm" }
+bitflags = { version = "2.4.1" }

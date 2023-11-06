@@ -1,0 +1,7 @@
+[package]
+name = "loxrustlib_vm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+backtrace = "0.3.69"

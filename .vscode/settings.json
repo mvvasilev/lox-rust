@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./loxrustlib_vm/Cargo.toml"
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": false
+}

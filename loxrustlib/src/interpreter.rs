@@ -1,10 +1,15 @@
-use std::{rc::Rc, collections::HashMap};
-use std::cell::{Ref, RefCell, RefMut};
-use std::collections::LinkedList;
-use crate::{outcome::Outcome, funcs::{clockfunc::ClockFunc, loxfunc::LoxDefinedFunction}};
 use crate::outcome::BreakReason::Errored;
 use crate::outcome::BreakReason::Returned;
+use crate::{
+    funcs::{clockfunc::ClockFunc, loxfunc::LoxDefinedFunction},
+    outcome::Outcome,
+};
+use std::cell::{Ref, RefCell, RefMut};
+use std::collections::LinkedList;
+use std::{collections::HashMap, rc::Rc};
 
+use crate::funcs::callable::Callable;
+use crate::outcome::BreakReason;
 use crate::{
     environment::Environment,
     err::LoxError,
@@ -12,28 +17,24 @@ use crate::{
     stmt::Statement,
     token::Token,
 };
-use crate::funcs::callable::Callable;
-use crate::outcome::BreakReason;
 
 #[derive(Default)]
 pub struct Interpreter {
     environments: LinkedList<Rc<RefCell<Environment>>>,
-    locals: HashMap<u16, usize>
+    locals: HashMap<u16, usize>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         let mut globals = Rc::new(RefCell::new(Environment::new()));
 
-        globals.borrow_mut().define_callable(
-            "clock".to_string(),
-            Rc::new(ClockFunc::new()),
-        );
-
+        globals
+            .borrow_mut()
+            .define_callable("clock".to_string(), Rc::new(ClockFunc::new()));
 
         Self {
             environments: LinkedList::from([globals]),
-            locals: HashMap::new()
+            locals: HashMap::new(),
         }
     }
 
@@ -95,14 +96,16 @@ impl Interpreter {
 
                 Ok(())
             }
-            Statement::FunDeclaration { name, parameters, body } => {
+            Statement::FunDeclaration {
+                name,
+                parameters,
+                body,
+            } => {
                 self.define_function(name, parameters, body)?;
 
                 Ok(())
-            },
-            Statement::ReturnStatement { keyword, value } => {
-                Err(Returned(self.evaluate(value)?))
-            },
+            }
+            Statement::ReturnStatement { keyword, value } => Err(Returned(self.evaluate(value)?)),
         }
     }
 
@@ -147,14 +150,29 @@ impl Interpreter {
         Ok(())
     }
 
-    fn define_function(&mut self, name: &Token, parameters: &[Token], body: &[Statement]) -> Outcome<()> {
+    fn define_function(
+        &mut self,
+        name: &Token,
+        parameters: &[Token],
+        body: &[Statement],
+    ) -> Outcome<()> {
         let identifier = name.lexeme.clone();
 
         if self.get_callable(&identifier).is_some() {
-            return Err(Errored(LoxError::with_message_line(format!("Function named '{}' already exists", identifier), name.line)))
+            return Err(Errored(LoxError::with_message_line(
+                format!("Function named '{}' already exists", identifier),
+                name.line,
+            )));
         }
 
-        self.current_environment().borrow_mut().define_callable(identifier, Rc::new(LoxDefinedFunction::new(parameters.to_owned(), body.to_owned(), self.environments.clone())));
+        self.current_environment().borrow_mut().define_callable(
+            identifier,
+            Rc::new(LoxDefinedFunction::new(
+                parameters.to_owned(),
+                body.to_owned(),
+                self.environments.clone(),
+            )),
+        );
 
         Ok(())
     }
@@ -169,11 +187,11 @@ impl Interpreter {
                 let depth = self.locals.get(id).unwrap_or(&0);
 
                 if depth == &0 {
-                    return self.eval_assignment_expression(identifier, expression)
+                    return self.eval_assignment_expression(identifier, expression);
                 }
 
                 self.eval_assignment_expression_at(identifier, depth.clone(), expression)
-            },
+            }
             Expression::Binary {
                 left,
                 operator,
@@ -196,21 +214,21 @@ impl Interpreter {
                 let depth = self.locals.get(id).unwrap_or(&0);
 
                 if depth == &0 {
-                    return self.eval_identifier(t)
+                    return self.eval_identifier(t);
                 }
 
                 self.eval_identifier_at(t, depth.clone())
-            },
+            }
             Expression::LiteralNumber(n) => Ok(Expression::LiteralNumber(*n)),
             Expression::LiteralBoolean(b) => Ok(Expression::LiteralBoolean(*b)),
             Expression::LiteralString(s) => Ok(Expression::LiteralString(s.clone())),
-            Expression::Nil => Ok(Expression::Nil)
+            Expression::Nil => Ok(Expression::Nil),
         }
     }
 
     pub fn execute_block_statement(&mut self, statements: &[Statement]) -> Outcome<()> {
-
-        self.environments.push_front(Rc::new(RefCell::new(Environment::new())));
+        self.environments
+            .push_front(Rc::new(RefCell::new(Environment::new())));
 
         for stmt in statements {
             self.execute(stmt)?;
@@ -221,7 +239,11 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn execute_block_statement_in_environment(&mut self, statements: &[Statement], environment: LinkedList<Rc<RefCell<Environment>>>) -> Outcome<()>  {
+    pub fn execute_block_statement_in_environment(
+        &mut self,
+        statements: &[Statement],
+        environment: LinkedList<Rc<RefCell<Environment>>>,
+    ) -> Outcome<()> {
         let old_env = std::mem::take(&mut self.environments);
 
         self.environments = environment;
@@ -245,7 +267,9 @@ impl Interpreter {
             .map(|init| self.evaluate(init))
             .transpose()?;
 
-        self.current_environment().borrow_mut().define(identifier.lexeme.clone(), init);
+        self.current_environment()
+            .borrow_mut()
+            .define(identifier.lexeme.clone(), init);
 
         Ok(())
     }
@@ -266,7 +290,7 @@ impl Interpreter {
         &mut self,
         identifier: &Token,
         depth: usize,
-        expression: &Expression
+        expression: &Expression,
     ) -> Outcome<Expression> {
         let value = self.evaluate(expression)?;
 
@@ -275,10 +299,7 @@ impl Interpreter {
         Ok(value)
     }
 
-    fn eval_comma_expression(
-        &mut self,
-        expressions: &[Expression],
-    ) -> Outcome<Expression> {
+    fn eval_comma_expression(&mut self, expressions: &[Expression]) -> Outcome<Expression> {
         let mut last_result = None;
 
         expressions.iter().rev().for_each(|expr| {
@@ -376,12 +397,15 @@ impl Interpreter {
             )));
         }
 
-        let x = arguments.iter().map(|a| self.evaluate(a)).collect::<Result<Vec<_>, _>>()?;
+        let x = arguments
+            .iter()
+            .map(|a| self.evaluate(a))
+            .collect::<Result<Vec<_>, _>>()?;
 
         match c.call(self, &x) {
             Ok(e) => Ok(e),
             Err(Returned(r)) => Ok(r),
-            Err(Errored(e)) => Err(Errored(e))
+            Err(Errored(e)) => Err(Errored(e)),
         }
     }
 
@@ -484,7 +508,7 @@ impl Interpreter {
         Ok(v)
     }
 
-    fn eval_identifier_at(&self, token: &Token, depth: usize) -> Outcome<Expression>  {
+    fn eval_identifier_at(&self, token: &Token, depth: usize) -> Outcome<Expression> {
         if self.get_callable_at(&token.lexeme, depth).is_some() {
             return Ok(Expression::LiteralString(format!("<fn {}>", token.lexeme)));
         }
@@ -568,7 +592,9 @@ impl Interpreter {
                     Ok(Expression::LiteralBoolean(false))
                 }
             }
-            _ => Err(Errored(LoxError::with_message("Invalid expression for comparison"))),
+            _ => Err(Errored(LoxError::with_message(
+                "Invalid expression for comparison",
+            ))),
         }
     }
 
@@ -621,7 +647,6 @@ impl Interpreter {
 
     pub fn assign_variable(&mut self, ident: &str, expression: &Expression) -> Outcome<()> {
         for env in self.environments.iter_mut().rev() {
-
             let mut e = env.borrow_mut();
 
             if e.has_declared_variable(ident) == true {
@@ -648,16 +673,20 @@ impl Interpreter {
         for el in self.environments.iter().rev().skip(depth) {
             match el.borrow().get(ident) {
                 None => (),
-                Some(expr) => return Some(expr)
+                Some(expr) => return Some(expr),
             }
         }
 
         None
     }
 
-    pub fn assign_variable_at(&mut self, ident: &str, expression: &Expression, depth: usize) -> Outcome<()> {
+    pub fn assign_variable_at(
+        &mut self,
+        ident: &str,
+        expression: &Expression,
+        depth: usize,
+    ) -> Outcome<()> {
         for el in self.environments.iter_mut().rev().skip(depth) {
-
             let mut e = el.borrow_mut();
 
             if e.has_declared_variable(ident) == true {
@@ -672,12 +701,10 @@ impl Interpreter {
         for el in self.environments.iter().rev().skip(depth) {
             match el.borrow().get_callable(ident) {
                 None => (),
-                Some(callable) => return Some(callable)
+                Some(callable) => return Some(callable),
             }
         }
 
         None
     }
-
-
 }

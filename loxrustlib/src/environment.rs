@@ -1,10 +1,10 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::funcs::callable::Callable;
-use crate::{err::LoxError, expr::Expression, token::Token};
-use crate::outcome::Outcome;
 use crate::outcome::BreakReason::Errored;
 use crate::outcome::BreakReason::Returned;
+use crate::outcome::Outcome;
+use crate::{err::LoxError, expr::Expression, token::Token};
 use std::collections::hash_map::Entry::Occupied;
 
 #[derive(Default)]
@@ -39,7 +39,10 @@ impl Environment {
 
             Ok(())
         } else {
-            Err(Errored(LoxError::with_message(&format!("Could not assign nonexistent identifier '{}'", name))))
+            Err(Errored(LoxError::with_message(&format!(
+                "Could not assign nonexistent identifier '{}'",
+                name
+            ))))
         }
     }
 

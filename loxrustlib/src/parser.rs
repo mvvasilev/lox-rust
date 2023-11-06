@@ -5,19 +5,19 @@ use crate::{
     expr::{BinaryOperator, Expression, LogicalOperator, UnaryOperator},
     scan::Scanner,
     stmt::Statement,
-    token::{Token, TokenKind}
+    token::{Token, TokenKind},
 };
 
 pub struct Parser<'a> {
     scanner: Peekable<Scanner<'a>>,
-    identifier_counter: u16
+    identifier_counter: u16,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(scanner: Scanner<'a>) -> Self {
         Self {
             scanner: scanner.peekable(),
-            identifier_counter: 0
+            identifier_counter: 0,
         }
     }
 
@@ -196,7 +196,11 @@ impl<'a> Parser<'a> {
 
         //self.consume_next(&TokenKind::Semicolon)?;
 
-        Ok(Statement::FunDeclaration { name: identifier, parameters, body })
+        Ok(Statement::FunDeclaration {
+            name: identifier,
+            parameters,
+            body,
+        })
     }
 
     fn statement(&mut self) -> Result<Statement, LoxError> {
@@ -205,7 +209,9 @@ impl<'a> Parser<'a> {
         }
 
         if let Some(TokenKind::LeftBrace) = self.match_next_kind(&[TokenKind::LeftBrace]) {
-            return Ok(Statement::BlockStatement { statements: self.block_statement()? });
+            return Ok(Statement::BlockStatement {
+                statements: self.block_statement()?,
+            });
         }
 
         if let Some(TokenKind::If) = self.match_next_kind(&[TokenKind::If]) {
@@ -240,7 +246,10 @@ impl<'a> Parser<'a> {
 
         self.consume_next(&TokenKind::Semicolon)?;
 
-        Ok(Statement::ReturnStatement { keyword: token.clone(), value })
+        Ok(Statement::ReturnStatement {
+            keyword: token.clone(),
+            value,
+        })
     }
 
     fn if_statement(&mut self) -> Result<Statement, LoxError> {
@@ -504,7 +513,6 @@ impl<'a> Parser<'a> {
     fn call(&mut self) -> Result<Expression, LoxError> {
         let mut expr = self.primary()?;
 
-        
         while let Some(opening_paren) = self.match_next_token(&[TokenKind::LeftParen]) {
             let mut arguments = Vec::new();
 
@@ -602,7 +610,9 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Nil,
                 ..
             }) => Ok(Expression::Nil),
-            Some(t) if matches!(t.kind, TokenKind::Identifier(_)) => Ok(Expression::Identifier(self.generate_id(), t)),
+            Some(t) if matches!(t.kind, TokenKind::Identifier(_)) => {
+                Ok(Expression::Identifier(self.generate_id(), t))
+            }
             Some(t) => Err(LoxError::with_line("Unexpected token '{}'.", t.line)),
             None => Err(LoxError::with_line(
                 &format!("Expected expression. Got {:?}", self.scanner.peek()),

@@ -33,6 +33,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitflags"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "327762f6e5a765692301e5bb513e0d9fef63be86bbc14528052b1cd3e6f03e07"
+
+[[package]]
 name = "cc"
 version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -63,7 +69,9 @@ checksum = "9cdc71e17332e86d2e1d38c1f99edcb6288ee11b815fb1a4b049eaa2114d369b"
 name = "loxrust"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "loxrustlib",
+ "loxrustlib_vm",
 ]
 
 [[package]]
@@ -71,10 +79,18 @@ name = "loxrust_workspace"
 version = "0.1.0"
 dependencies = [
  "loxrustlib",
+ "loxrustlib_vm",
 ]
 
 [[package]]
 name = "loxrustlib"
+version = "0.1.0"
+dependencies = [
+ "backtrace",
+]
+
+[[package]]
+name = "loxrustlib_vm"
 version = "0.1.0"
 dependencies = [
  "backtrace",

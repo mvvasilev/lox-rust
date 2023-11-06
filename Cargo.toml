@@ -9,11 +9,13 @@ edition = "2021"
 members = [
     ".",
     "loxrust",
-    "loxrustlib"
+    "loxrustlib",
+    "loxrustlib_vm"
 ]
 
 [dependencies]
 loxrustlib = { path = "./loxrustlib" }
+loxrustlib_vm = { path = "./loxrustlib_vm" }
 
 [[bin]]
 name = "rlox"
